@@ -19,7 +19,7 @@ export const KNOWN_WALLETS: readonly KnownWallet[] = [
     name: 'Trust Wallet',
     icon: 'wallets/trust.svg',
     install: 'https://trustwallet.com/download',
-    openInApp: (url) => `https://link.trustwallet.com/open_url?coin_id=20000714&url=${encodeURIComponent(url)}`,
+    openInApp: (url) => `https://link.trustwallet.com/open_url?coin_id=60&url=${encodeURIComponent(url)}`,
   },
   {
     id: 'com.coinbase.wallet',

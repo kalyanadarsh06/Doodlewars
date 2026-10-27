@@ -1,5 +1,5 @@
 import { Sketchpad } from '../canvas/sketchpad'
-import { TICKER } from '../config'
+import { TICKER, TITLE_MAX } from '../config'
 import { JUDGE_NAME } from '../content/judge'
 import { randomTitle } from '../content/themes'
 import { currentRound } from '../game/round'
@@ -31,7 +31,7 @@ export function studio(): HTMLElement {
   const hint = h('div', { class: 'pad-hint', 'aria-hidden': 'true' }, svg(GHOST), h('p', {}, 'go go go!'))
   pad.onChange(() => hint.classList.toggle('is-hidden', !pad.isEmpty))
 
-  const title = h('input', { class: 'title-input', maxlength: 22, spellcheck: 'false', 'aria-label': 'Drawing name' })
+  const title = h('input', { class: 'title-input', maxlength: TITLE_MAX, spellcheck: 'false', 'aria-label': 'Drawing name' })
   const stage = h('section', { class: 'stage', 'aria-label': 'Draw', 'data-phase': 'idle' })
   let round = 0
 
