@@ -7,8 +7,11 @@ export const icons = {
   undo: icon('<path d="M14 9l-6 6 6 6"/><path d="M8.5 15H23a8 8 0 0 1 0 16h-5"/>'),
   trash: icon('<path d="M9 12h22M16 12V8.5h8V12M11.5 12l1.5 20h14l1.5-20" fill="#ffffff"/><path d="M17.5 17v10M22.5 17v10"/>'),
   download: icon('<path d="M20 7v18M12 18l8 8 8-8M9 33h22"/>'),
+  redo: icon('<path d="M26 9l6 6-6 6"/><path d="M31.5 15H17a8 8 0 0 0 0 16h5"/>'),
   arrow: icon('<path d="M8 20h24M24 12l8 8-8 8"/>'),
   clock: icon('<circle cx="20" cy="21" r="12" fill="#ffffff"/><path d="M20 14v7l5 3M16 5h8"/>'),
   play: icon('<path d="M13 9l18 11-18 11z" fill="currentColor"/>'),
+  wallet: icon('<path d="M8 12h22a4 4 0 0 1 4 4v14a4 4 0 0 1-4 4H10a4 4 0 0 1-4-4V12a4 4 0 0 1 4-4h17" fill="#ffffff"/><path d="M34 19h-7a3.5 3.5 0 0 0 0 7h7z" fill="#f9d85e"/>'),
+  copy: icon('<rect x="14" y="14" width="18" height="18" rx="3" fill="#ffffff"/><path d="M26 14v-3a3 3 0 0 0-3-3H11a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3h3"/>'),
   lock: icon('<rect x="9" y="18" width="22" height="15" rx="3" fill="#ffffff"/><path d="M14 18v-4a6 6 0 0 1 12 0v4"/>'),
 }

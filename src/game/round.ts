@@ -1,6 +1,8 @@
 import { GENESIS_MS, ROUND_MS } from '../config'
-import { THESES } from '../content/themes'
+import { PROMPTS } from '../content/themes'
 import { seeded } from '../util/random'
+
+const FIRST_ROUND = Math.floor(GENESIS_MS / ROUND_MS)
 
 export function currentRound(now = Date.now()): number {
   return Math.floor(now / ROUND_MS)
@@ -11,14 +13,18 @@ export function msLeft(round: number, now = Date.now()): number {
 }
 
 export function roundNumber(round: number): number {
-  return round - Math.floor(GENESIS_MS / ROUND_MS) + 1
+  return round - FIRST_ROUND + 1
+}
+
+export function roundAt(number: number): number {
+  return number + FIRST_ROUND - 1
 }
 
 function promptIndex(round: number): number {
-  return Math.floor(seeded(Math.imul(round, 2654435761))() * THESES.length)
+  return Math.floor(seeded(Math.imul(round, 2654435761))() * PROMPTS.length)
 }
 
 export function promptFor(round: number): string {
   const index = promptIndex(round)
-  return THESES[index === promptIndex(round - 1) ? (index + 1) % THESES.length : index]
+  return PROMPTS[index === promptIndex(round - 1) ? (index + 1) % PROMPTS.length : index]
 }

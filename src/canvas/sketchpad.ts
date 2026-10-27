@@ -57,6 +57,7 @@ export class Sketchpad {
   private readonly abort = new AbortController()
   private readonly changeListeners = new Set<() => void>()
   private strokes: Stroke[] = []
+  private undone: Stroke[] = []
   private current: Stroke | null = null
 
   constructor(private readonly canvas: HTMLCanvasElement) {
@@ -76,18 +77,37 @@ export class Sketchpad {
     return !this.strokes.some((stroke) => stroke.tool === 'pen')
   }
 
+  get canUndo(): boolean {
+    return this.strokes.length > 0
+  }
+
+  get canRedo(): boolean {
+    return this.undone.length > 0
+  }
+
   onChange(listener: () => void): void {
     this.changeListeners.add(listener)
   }
 
   undo(): void {
-    this.strokes.pop()
+    const stroke = this.strokes.pop()
+    if (!stroke) return
+    this.undone.push(stroke)
+    this.redraw()
+    this.notify()
+  }
+
+  redo(): void {
+    const stroke = this.undone.pop()
+    if (!stroke) return
+    this.strokes.push(stroke)
     this.redraw()
     this.notify()
   }
 
   clear(): void {
     this.strokes = []
+    this.undone = []
     this.current = null
     this.redraw()
     this.notify()
@@ -138,6 +158,7 @@ export class Sketchpad {
     this.canvas.setPointerCapture(event.pointerId)
     this.current = { tool: this.tool, color: this.color, size: this.size, points: [this.point(event)] }
     this.strokes.push(this.current)
+    this.undone = []
     this.redraw()
     this.notify()
   }

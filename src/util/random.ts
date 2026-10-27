@@ -14,3 +14,14 @@ export function seeded(seed: number): Rng {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296
   }
 }
+
+export function shuffle<T>(rng: Rng, items: readonly T[]): T[] {
+  const result = [...items]
+  for (let index = result.length - 1; index > 0; index -= 1) {
+    const other = Math.floor(rng() * (index + 1))
+    const item = result[index]
+    result[index] = result[other]
+    result[other] = item
+  }
+  return result
+}
