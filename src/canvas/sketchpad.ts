@@ -47,9 +47,10 @@ function paint(ctx: CanvasRenderingContext2D, width: number, height: number, str
 }
 
 export class Sketchpad {
-  color: string = PALETTE[0]
+  color: string = PALETTE[0].value
   size: number = BRUSH_SIZES[1]
   tool: Tool = 'pen'
+  enabled = true
 
   private readonly ctx: CanvasRenderingContext2D
   private readonly observer: ResizeObserver
@@ -132,7 +133,7 @@ export class Sketchpad {
   }
 
   private start(event: PointerEvent): void {
-    if (event.button > 0) return
+    if (!this.enabled || event.button > 0) return
     event.preventDefault()
     this.canvas.setPointerCapture(event.pointerId)
     this.current = { tool: this.tool, color: this.color, size: this.size, points: [this.point(event)] }
@@ -146,6 +147,10 @@ export class Sketchpad {
     const events = event.getCoalescedEvents?.() ?? [event]
     for (const item of events.length ? events : [event]) this.current.points.push(this.point(item))
     this.redraw()
+  }
+
+  stopStroke(): void {
+    this.end()
   }
 
   private end(): void {

@@ -6,8 +6,9 @@ export const icons = {
   eraser: icon('<path d="M8 25l12-13 11 10-9 10h-8z" fill="#ffffff"/><path d="M14 18.5l11 10M14 32h18"/>'),
   undo: icon('<path d="M14 9l-6 6 6 6"/><path d="M8.5 15H23a8 8 0 0 1 0 16h-5"/>'),
   trash: icon('<path d="M9 12h22M16 12V8.5h8V12M11.5 12l1.5 20h14l1.5-20" fill="#ffffff"/><path d="M17.5 17v10M22.5 17v10"/>'),
-  shuffle: icon('<path d="M7 13h6c7 0 8 14 15 14h5M7 27h6c3 0 5-2.5 6.5-5M24 14.5c1.2-1 2.6-1.5 4-1.5h5M29 9l4 4-4 4M29 23l4 4-4 4"/>'),
   download: icon('<path d="M20 7v18M12 18l8 8 8-8M9 33h22"/>'),
-  heart: icon('<path d="M20 33S7 25 7 16a6.5 6.5 0 0 1 13-2 6.5 6.5 0 0 1 13 2c0 9-13 17-13 17z" fill="currentColor"/>'),
   arrow: icon('<path d="M8 20h24M24 12l8 8-8 8"/>'),
+  clock: icon('<circle cx="20" cy="21" r="12" fill="#ffffff"/><path d="M20 14v7l5 3M16 5h8"/>'),
+  play: icon('<path d="M13 9l18 11-18 11z" fill="currentColor"/>'),
+  lock: icon('<rect x="9" y="18" width="22" height="15" rx="3" fill="#ffffff"/><path d="M14 18v-4a6 6 0 0 1 12 0v4"/>'),
 }
