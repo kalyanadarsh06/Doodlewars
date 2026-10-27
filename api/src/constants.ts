@@ -1,0 +1,14 @@
+export const GRACE_MS = 15 * 1000
+export const CLAIM_MS = 60 * 60 * 1000
+export const MAX_ENTRIES = 100
+export const CODE_LENGTH = 12
+export const NAME_MAX = 20
+export const LOCK_MS = 10 * 60 * 1000
+export const REBROADCAST_MS = 60 * 1000
+export const JUDGE_GIVE_UP_MS = 30 * 60 * 1000
+export const JUDGE_BATCH = 20
+export const MAX_IMAGE_BYTES = 2_000_000
+export const PROMPT_MIN = 3
+export const PROMPT_MAX = 60
+export const PROMPTS_PER_HOUR = 5
+export const PAGE_MAX = 50

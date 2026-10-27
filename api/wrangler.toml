@@ -1,0 +1,28 @@
+name = "doodlewars"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "../dist"
+run_worker_first = ["/api/*"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "doodlewars"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "IMAGES"
+bucket_name = "doodlewars-images"
+
+[triggers]
+crons = ["* * * * *"]
+
+[vars]
+TOKEN_ADDRESS = ""
+MIN_HOLD = "1"
+MIN_PAYOUT_WEI = "100000000000000"
+JUDGE_MODEL = "claude-opus-5-5"
+PRICE_URL = "https://api.coinbase.com/v2/prices/ETH-USD/spot"

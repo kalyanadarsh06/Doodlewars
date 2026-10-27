@@ -1,0 +1,31 @@
+{
+  "name": "doodlewars-api",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --test-scheduled",
+    "deploy": "npm --prefix .. run build && wrangler deploy",
+    "migrate:local": "wrangler d1 migrations apply doodlewars --local",
+    "migrate:remote": "wrangler d1 migrations apply doodlewars --remote",
+    "check": "tsc && tsc -p test",
+    "test": "vitest run test/unit.test.ts",
+    "test:e2e": "vitest run test/e2e.test.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "0.133.0",
+    "viem": "2.57.5",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261012.1",
+    "@types/node": "24.9.2",
+    "typescript": "5.6.3",
+    "vitest": "5.0.4",
+    "wrangler": "4.149.0"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "workerd@1.20261006.1": true
+  }
+}
