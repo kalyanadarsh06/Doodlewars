@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DoodleWars</title>
+    <meta name="description" content="A new $DOODLEWARS prompt drops every 5 minutes. Draw it before the timer runs out. The best drawing gets paid." />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Patrick+Hand+SC&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <svg class="filters" aria-hidden="true" focusable="false">
+      <filter id="boil-1">
+        <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="2" />
+        <feDisplacementMap in="SourceGraphic" scale="3" />
+      </filter>
+      <filter id="boil-2">
+        <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="7" />
+        <feDisplacementMap in="SourceGraphic" scale="3" />
+      </filter>
+      <filter id="boil-3">
+        <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="13" />
+        <feDisplacementMap in="SourceGraphic" scale="3" />
+      </filter>
+    </svg>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

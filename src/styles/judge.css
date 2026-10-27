@@ -1,0 +1,227 @@
+.verdict {
+  display: grid;
+  grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
+  align-items: center;
+  gap: 32px 56px;
+  padding: 28px 40px;
+  border: var(--line) solid var(--ink);
+  border-radius: 18px 30px 22px 34px / 28px 18px 34px 22px;
+  background: var(--white);
+  box-shadow: 10px 10px 0 var(--ink);
+}
+
+.verdict-judge {
+  display: grid;
+  justify-items: center;
+  gap: 18px;
+}
+
+.judge-figure {
+  width: min(100%, 250px);
+}
+
+.judge {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.judge-light {
+  animation: blink 1.6s steps(1) infinite;
+}
+
+.judge-eyes,
+.judge-brow,
+.judge-gavel {
+  transform-box: fill-box;
+}
+
+.judge-gavel {
+  transform-origin: 50% 87%;
+}
+
+.verdict[data-phase='thinking'] .judge-eyes {
+  animation: ponder 0.9s ease-in-out infinite alternate;
+}
+
+.verdict[data-phase='thinking'] .judge-brow:first-of-type {
+  animation: brow 2.4s ease-in-out infinite;
+}
+
+.verdict[data-phase='verdict'] .judge-gavel {
+  animation: bang 0.6s ease-in-out 2;
+}
+
+.verdict-bench {
+  display: grid;
+  justify-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+
+.exhibit-label {
+  padding: 4px 16px;
+  border: var(--line) solid var(--ink);
+  border-radius: 999px;
+  background: var(--paper);
+  font-family: var(--font-caps);
+  font-size: 18px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.verdict[data-phase='verdict'] .exhibit-label {
+  background: var(--yellow);
+  box-shadow: 3px 3px 0 var(--ink);
+}
+
+.exhibit-frame {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: min(100%, 380px);
+  aspect-ratio: 4 / 3;
+  padding: 6%;
+  border: var(--line) solid var(--ink);
+  border-radius: 6px;
+  background: var(--white);
+  box-shadow: 8px 8px 0 rgba(22, 22, 22, 0.1);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.exhibit-frame svg {
+  width: 100%;
+  height: 100%;
+}
+
+.verdict[data-phase='verdict'] .exhibit-frame {
+  box-shadow: 0 0 0 8px var(--yellow), 10px 10px 0 8px var(--ink);
+  transform: rotate(-2deg) scale(1.02);
+}
+
+.exhibit-prize {
+  position: absolute;
+  right: -18px;
+  bottom: -16px;
+  display: grid;
+  justify-items: start;
+  padding: 6px 16px 8px;
+  border: var(--line) solid var(--ink);
+  background: var(--green);
+  box-shadow: 4px 4px 0 var(--ink);
+  font-family: var(--font-caps);
+  font-size: 14px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  transform: rotate(4deg);
+}
+
+.exhibit-prize strong {
+  font-size: clamp(30px, 3vw, 40px);
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.exhibit-next {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 18px;
+  border: 2.5px dashed var(--ink);
+  border-radius: 999px;
+  font-size: 18px;
+}
+
+.exhibit-next strong {
+  min-width: 2.6em;
+  font-family: var(--font-caps);
+  font-size: 22px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.exhibit-caption {
+  margin-top: 16px;
+  font-size: 20px;
+  text-align: center;
+}
+
+.exhibit-empty {
+  color: var(--dot);
+  font-family: var(--font-caps);
+  font-size: 96px;
+  line-height: 1;
+}
+
+.verdict-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.judge-stage {
+  display: grid;
+}
+
+@keyframes blink {
+  50% {
+    fill: var(--yellow);
+  }
+}
+
+@keyframes ponder {
+  from {
+    transform: translateX(-4px);
+  }
+  to {
+    transform: translate(4px, -3px);
+  }
+}
+
+@keyframes brow {
+  0%,
+  70%,
+  100% {
+    transform: none;
+  }
+  80% {
+    transform: translateY(-6px) rotate(-6deg);
+  }
+}
+
+@keyframes bang {
+  0%,
+  100% {
+    transform: none;
+  }
+  35% {
+    transform: rotate(-14deg);
+  }
+  70% {
+    transform: rotate(28deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .judge-light,
+  .verdict[data-phase] .judge-eyes,
+  .verdict[data-phase] .judge-brow,
+  .verdict[data-phase] .judge-gavel {
+    animation: none;
+  }
+}
+
+@media (max-width: 860px) {
+  .verdict {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 28px 20px;
+  }
+
+  .judge-figure {
+    width: 130px;
+  }
+}
