@@ -1,0 +1,227 @@
+:root {
+  --ink: #161616;
+  --paper: #f7f7f3;
+  --white: #ffffff;
+  --dot: #cfcfc6;
+  --muted: #66665f;
+  --yellow: #f9d85e;
+  --red: #ee5d57;
+  --blue: #6e6cf3;
+  --pink: #f09aae;
+  --green: #5cc08a;
+  --orange: #f1a55a;
+  --line: 3px;
+  --font: 'Patrick Hand', 'Comic Sans MS', cursive;
+  --font-caps: 'Patrick Hand SC', 'Patrick Hand', cursive;
+  --gutter: 48px;
+  --header-height: 110px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 120px;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: var(--paper);
+  background-image: radial-gradient(var(--dot) 1.3px, transparent 1.6px);
+  background-size: 30px 30px;
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 19px;
+  line-height: 1.35;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+p,
+figure,
+ol,
+ul {
+  margin: 0;
+}
+
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+a {
+  color: inherit;
+}
+
+svg {
+  display: block;
+}
+
+:focus-visible {
+  outline: 3px dashed var(--blue);
+  outline-offset: 4px;
+}
+
+.filters {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+.blob-a {
+  border-radius: 58% 42% 52% 48% / 46% 56% 44% 54%;
+}
+
+.blob-b {
+  border-radius: 44% 56% 40% 60% / 58% 42% 58% 42%;
+}
+
+.blob-c {
+  border-radius: 50%;
+}
+
+.blob-d {
+  border-radius: 16px 28px 20px 32px / 26px 16px 32px 20px;
+}
+
+.boil {
+  display: inline-block;
+  animation: boil 0.45s steps(1) infinite;
+}
+
+.wiggle {
+  animation: wiggle 2.4s ease-in-out infinite;
+}
+
+@keyframes boil {
+  0% {
+    filter: url(#boil-1);
+  }
+  33% {
+    filter: url(#boil-2);
+  }
+  66% {
+    filter: url(#boil-3);
+  }
+}
+
+@keyframes wiggle {
+  0%,
+  100% {
+    transform: rotate(-2deg);
+  }
+  50% {
+    transform: rotate(2deg) translateY(-3px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .boil,
+  .wiggle {
+    animation: none;
+  }
+}
+
+.rule-heading {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-family: var(--font-caps);
+  font-weight: 400;
+  font-size: 26px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.rule-heading::after {
+  content: '';
+  flex: 0 0 72px;
+  height: var(--line);
+  border-radius: 2px;
+  background: var(--ink);
+}
+
+h2.rule-heading {
+  font-size: clamp(30px, 4vw, 44px);
+}
+
+h2.rule-heading::after {
+  flex: 1;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px 30px;
+  border: var(--line) solid var(--ink);
+  border-radius: 40px 34px 42px 30px / 30px 42px 32px 40px;
+  background: var(--white);
+  box-shadow: 4px 5px 0 var(--ink);
+  font-family: var(--font-caps);
+  font-size: 22px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.btn svg {
+  width: 22px;
+  height: 22px;
+}
+
+.btn:hover {
+  transform: translate(-1px, -2px) rotate(-1.5deg);
+  box-shadow: 6px 7px 0 var(--ink);
+}
+
+.btn:active {
+  transform: translate(3px, 4px);
+  box-shadow: 1px 1px 0 var(--ink);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: 2px 2px 0 var(--ink);
+}
+
+.btn-orange {
+  background: var(--orange);
+}
+
+.btn-yellow {
+  background: var(--yellow);
+}
+
+.btn-small {
+  padding: 8px 18px;
+  font-size: 18px;
+  box-shadow: 3px 3px 0 var(--ink);
+}
+
+.btn-small svg {
+  width: 18px;
+  height: 18px;
+}
