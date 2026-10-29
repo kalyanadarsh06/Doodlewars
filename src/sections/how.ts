@@ -52,7 +52,7 @@ const STEPS = [
   { title: 'A prompt drops', body: ['New prompt every 5 minutes, ', 'picked from player suggestions', '.'], art: promptArt },
   { title: 'You draw it', body: ['Beat the clock. ', `Hold ${TICKER} to compete`, '.'], art: drawArt },
   { title: 'Judge picks', body: [`${JUDGE_NAME} checks every drawing and `, 'crowns one per round', '.'], art: judgeArt },
-  { title: 'The Final pays', body: ['After 6 rounds, the winners face off. ', 'Champion takes the creator fees', '.'], art: prizeArt },
+  { title: 'The Final pays', body: ['After 6 rounds, the winners face off. ', 'Champion takes the creator fees', '. Nobody drew? They roll over to the next Final.'], art: prizeArt },
 ] as const
 
 export function how(): HTMLElement {

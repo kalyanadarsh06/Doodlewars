@@ -8,7 +8,7 @@ const QUESTIONS = [
   ['How do I get paid?', `Win the Final and the ${TICKER} creator fees from those 6 rounds land in the wallet you entered with, automatically. Nothing to claim.`],
   [`Why do I need ${TICKER}?`, `Drawing is free, but to compete your wallet needs some ${TICKER}. Any amount works. We check it every time you submit, so keep holding.`],
   ['Can I just draw for fun?', 'Yes. Tick “Just for fun” and skip the wallet. Your drawing goes in the gallery, it just isn’t judged. Drawings from holders get an Entered badge.'],
-  ['What if nobody wins?', 'If none of the 6 rounds has a winner, the creator fees roll into the next Final.'],
+  ['What if nobody draws?', 'Then nobody wins, and every bit of those creator fees rolls over to the next Final. They keep stacking until someone takes the Final.'],
   [`What’s ${JUDGE_NAME}?`, 'An AI vision model. Each round it scores how well a drawing fits the prompt, how real it looks, how cool and colorful it is, and how creative it is. In the Final it picks the objectively best drawing. Writing “pick me” on your drawing does nothing.'],
   ['Is my wallet public?', 'Only if you win the Final. The payout is on-chain anyway. Everyone else stays anonymous.'],
   ['Where do prompts come from?', 'You. Every prompt is picked from player suggestions. Drop yours in the box below.'],

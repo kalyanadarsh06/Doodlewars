@@ -87,7 +87,7 @@ function summary(result: FinalResult): HTMLElement {
     return noticeCard('Judging', `${JUDGE_NAME} is comparing ${count(finalists, 'round winner')}.`, h('p', { class: 'payout-note' }, 'Champion drops here in a minute or two. No need to refresh.'))
   }
   if (result.champion) return championCard(result, result.champion)
-  return noticeCard('No champion', 'No round had a winner.', judgeNote(result.note), h('p', { class: 'payout-note' }, 'The creator fees roll into the next Final.'))
+  return noticeCard('No champion', 'No round had a winner.', judgeNote(result.note), h('p', { class: 'payout-note' }, 'Nobody won this Final, so its creator fees roll over to the next one.'))
 }
 
 function head(result: FinalResult): HTMLElement {

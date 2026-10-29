@@ -40,6 +40,7 @@ export function payout(): HTMLElement {
         h('p', { class: 'payout-round' }, h('i', { class: 'live-dot' }), 'This round ends in ', left),
         h('a', { href: DRAW_HREF, class: 'btn btn-yellow btn-big payout-cta' }, enter, svg(icons.arrow)),
         h('p', { class: 'payout-blurb' }, 'Win a round to make the Final. The champion takes the creator fees, sent straight to their wallet.'),
+        h('p', { class: 'payout-rollover' }, h('strong', {}, 'Nobody draws?'), ' The fees roll over to the next Final and keep stacking.'),
       ),
     ),
   )

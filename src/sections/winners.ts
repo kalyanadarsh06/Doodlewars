@@ -61,7 +61,7 @@ export function hall(): HTMLElement {
     'section',
     { class: 'section hall', id: 'winners' },
     ruleHeading('Hall of Fame', 'h2'),
-    h('p', { class: 'section-lede' }, 'Every drawing here beat a whole Final and took home the creator fees.'),
+    h('p', { class: 'section-lede' }, 'Every drawing here won creator fees.'),
     grid,
     status,
     h('a', { href: WINNERS_HREF, class: 'btn section-more' }, 'See every champion', svg(icons.arrow)),

@@ -147,3 +147,12 @@
     animation: none;
   }
 }
+
+.payout-rollover {
+  max-width: 40ch;
+  padding: 8px 14px;
+  border: 2.5px dashed var(--ink);
+  border-radius: 12px;
+  background: var(--paper);
+  font-size: 18px;
+}

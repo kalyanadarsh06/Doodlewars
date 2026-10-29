@@ -1,4 +1,4 @@
-import { JUDGE_NAME, JUDGE_QUIPS, JUDGE_SVG } from '../content/judge'
+import { JUDGE_NAME, JUDGE_QUIP, JUDGE_SVG } from '../content/judge'
 import type { Champion, Drawing, FinalResult, RoundResult } from '../game/results'
 import { DRAW_HREF, finalHref, roundHref } from '../router'
 import { h, svg } from '../ui/dom'
@@ -105,11 +105,11 @@ function finalLine(phase: Phase, final: FinalResult): string {
   if (phase === 'thinking') return `${count(finalists(final), 'round winner')}. One champion. Let’s go.`
   const { champion, note } = final
   if (champion) return note ?? `And the champion is… “${drawingTitle(champion)}”!`
-  return 'No round winners this time. The creator fees roll over.'
+  return 'No winners this time. The creator fees roll over to the next Final.'
 }
 
 function line(stage: Stage): string {
-  if (stage.phase === 'waiting') return JUDGE_QUIPS[stage.number % JUDGE_QUIPS.length]
+  if (stage.phase === 'waiting') return JUDGE_QUIP
   return 'final' in stage ? finalLine(stage.phase, stage.final) : roundLine(stage.phase, stage.result)
 }
 

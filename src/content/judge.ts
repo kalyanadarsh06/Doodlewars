@@ -16,11 +16,4 @@ export const JUDGE_SVG = `<svg class="judge" viewBox="-10 0 260 240" fill="none"
 
 export const JUDGE_SCORES = ['Fits the prompt', 'Looks real', 'Cool & colorful', 'Creative'] as const
 
-export const JUDGE_QUIPS = [
-  'Impress me.',
-  'Rough lines are fine. Boring ones aren’t.',
-  'Make it weird. I like weird.',
-  'I’ve seen a thousand whales. Surprise me.',
-  'Show me what you’ve got.',
-  'Color is free. Use it.',
-] as const
+export const JUDGE_QUIP = 'Lock in or stay broke'

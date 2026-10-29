@@ -13,6 +13,7 @@ const RULES = [
   'One drawing per person per round. Submit before 0:00, and keep editing until then.',
   `${JUDGE_NAME} picks one winner per round: ${JUDGE_SCORES.join(', ').toLowerCase()}.`,
   'Every 6 rounds, the round winners face off. The champion gets the creator fees, sent straight to their wallet.',
+  'Nobody draws? Those creator fees roll over to the next Final and keep stacking.',
   'Just want to draw? Tick “Just for fun”. You’ll show up in the gallery, not the judging.',
 ] as const
 
