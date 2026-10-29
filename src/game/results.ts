@@ -1,13 +1,32 @@
-import { ROUND_MS, WINNER_SHARE } from '../config'
-import { DOODLES } from '../content/doodles'
-import { pick, seeded, shuffle } from '../util/random'
-import { currentRound, promptFor, roundNumber } from './round'
+import { ApiError } from '../api/client'
+import {
+  fetchChampions,
+  fetchFinal,
+  fetchFinals,
+  fetchRound,
+  fetchRounds,
+  type ApiDrawing,
+  type ApiFinal,
+  type ApiFinalRound,
+  type ApiHallEntry,
+  type ApiPastRound,
+  type ApiPayout,
+} from '../api/endpoints'
+import { currentRound, finalOf } from './round'
 
-export interface Entry {
+export interface Drawing {
   id: string
   title: string
-  svg: string
-  wallet: string | null
+  entered: boolean
+  image: string
+}
+
+export interface FinalLink {
+  final: number
+  number: number
+  endsAt: number
+  settled: boolean
+  champion: boolean
 }
 
 export interface RoundResult {
@@ -15,51 +34,162 @@ export interface RoundResult {
   number: number
   prompt: string
   startsAt: number
-  live: boolean
-  entries: Entry[]
-  winner: Entry | null
-  feesUsd: number | null
-  prizeUsd: number | null
-  example: boolean
+  status: 'judging' | 'done'
+  entries: number
+  winner: Drawing | null
+  note: string | null
+  final: FinalLink
 }
 
-type Outcome = Pick<RoundResult, 'entries' | 'winner' | 'feesUsd'>
-
-function exampleRound(round: number): Outcome & { feesUsd: number } {
-  const rng = seeded(Math.imul(round, 2246822519))
-  const count = Math.floor(rng() * (DOODLES.length + 1))
-  const entries = shuffle(rng, DOODLES)
-    .slice(0, count)
-    .map((doodle, index) => ({ id: `${round}-${index}`, title: doodle.title, svg: doodle.svg, wallet: null }))
-  const winner = entries.length ? pick(rng, entries) : null
-  const feesUsd = Math.round((25 + rng() ** 2 * 900) * 100) / 100
-  return { entries, winner, feesUsd }
+export interface RoundDetail extends RoundResult {
+  drawings: Drawing[]
 }
 
-function winnerShare(feesUsd: number | null): number | null {
-  return feesUsd === null ? null : Math.round(feesUsd * WINNER_SHARE) / 100
+export type Payout = { state: 'sending'; tx: string | null } | { state: 'paid'; tx: string } | { state: 'failed' } | { state: 'unpaid' }
+
+export interface FinalRound {
+  round: number
+  number: number
+  prompt: string | null
+  status: 'upcoming' | 'live' | 'judging' | 'done' | 'void'
+  entries: number
+  winner: Drawing | null
 }
 
-export function roundResult(round: number, now = Date.now()): RoundResult {
-  const live = round >= currentRound(now)
-  const outcome: Outcome = live ? { entries: [], winner: null, feesUsd: null } : exampleRound(round)
+export interface Champion extends Drawing {
+  round: number
+  roundNumber: number
+  wallet: string | null
+}
+
+export interface FinalResult {
+  final: number
+  number: number
+  startsAt: number
+  endsAt: number
+  status: 'live' | 'judging' | 'done'
+  rounds: FinalRound[]
+  note: string | null
+  champion: Champion | null
+  payout: Payout | null
+}
+
+export interface HallEntry {
+  final: number
+  number: number
+  endsAt: number
+  drawing: Drawing
+  roundNumber: number
+  prompt: string
+  note: string | null
+  payout: Payout | null
+}
+
+function drawing(item: ApiDrawing): Drawing {
+  return { ...item, id: String(item.id) }
+}
+
+function roundFromApi(round: ApiPastRound): RoundResult {
+  const done = round.status === 'done'
   return {
-    round,
-    number: roundNumber(round),
-    prompt: promptFor(round),
-    startsAt: round * ROUND_MS,
-    live,
-    ...outcome,
-    prizeUsd: winnerShare(outcome.feesUsd),
-    example: true,
+    round: round.round,
+    number: round.number,
+    prompt: round.prompt,
+    startsAt: round.startsAt,
+    status: done ? 'done' : 'judging',
+    entries: round.entries,
+    winner: done && round.winner ? drawing(round.winner) : null,
+    note: done ? round.note : null,
+    final: round.final,
   }
 }
 
-export function livePrizeUsd(round: number, now = Date.now()): number {
-  const progress = Math.min(1, Math.max(0, (now - round * ROUND_MS) / ROUND_MS))
-  return Math.round(exampleRound(round).feesUsd * progress * WINNER_SHARE) / 100
+function finalRoundFromApi(round: ApiFinalRound): FinalRound {
+  return { ...round, winner: round.winner ? drawing(round.winner) : null }
 }
 
-export function pastRounds(count: number, before: number): RoundResult[] {
-  return Array.from({ length: count }, (_, index) => roundResult(before - 1 - index)).filter((result) => result.number >= 1)
+function payout(value: ApiPayout | null): Payout | null {
+  if (!value) return null
+  if (value.status === 'paid' && value.tx) return { state: 'paid', tx: value.tx }
+  if (value.status === 'failed' || value.status === 'unpaid') return { state: value.status }
+  return { state: 'sending', tx: value.tx }
+}
+
+function finalFromApi(final: ApiFinal): FinalResult {
+  const done = final.status === 'settled' && final.endsAt <= Date.now()
+  return {
+    final: final.final,
+    number: final.number,
+    startsAt: final.startsAt,
+    endsAt: final.endsAt,
+    status: done ? 'done' : final.status === 'live' ? 'live' : 'judging',
+    rounds: final.rounds.map(finalRoundFromApi),
+    note: done ? final.note : null,
+    champion: done && final.champion ? { ...drawing(final.champion), round: final.champion.round, roundNumber: final.champion.roundNumber, wallet: final.champion.wallet } : null,
+    payout: done ? payout(final.payout) : null,
+  }
+}
+
+function hallFromApi(entry: ApiHallEntry): HallEntry {
+  return {
+    final: entry.final,
+    number: entry.number,
+    endsAt: entry.endsAt,
+    drawing: drawing(entry.drawing),
+    roundNumber: entry.roundNumber,
+    prompt: entry.prompt,
+    note: entry.note,
+    payout: payout(entry.payout),
+  }
+}
+
+export function resultKey(result: RoundResult): string {
+  return `${result.round}:${result.status}:${result.final.settled}`
+}
+
+export function finalKey(result: FinalResult): string {
+  return `${result.final}:${result.status}:${result.payout?.state ?? ''}:${result.rounds.map((round) => round.status).join()}`
+}
+
+export function hallKey(entry: HallEntry): string {
+  return `${entry.final}:${entry.payout?.state ?? ''}`
+}
+
+export function roundSettled(result: RoundResult): boolean {
+  return result.status === 'done' && result.final.settled
+}
+
+export function finalSettled(result: FinalResult): boolean {
+  return result.status === 'done' && (result.payout === null || result.payout.state === 'paid' || result.payout.state === 'unpaid')
+}
+
+export async function pastRounds(limit: number, before = currentRound()): Promise<RoundResult[]> {
+  return (await fetchRounds(before, limit)).map(roundFromApi)
+}
+
+export async function roundDetail(round: number): Promise<RoundDetail | null> {
+  try {
+    const result = await fetchRound(round)
+    return result.status === 'open' ? null : { ...roundFromApi(result), drawings: result.drawings.map(drawing) }
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null
+    throw error
+  }
+}
+
+export async function recentFinals(limit: number, before = finalOf(currentRound()) + 1): Promise<FinalResult[]> {
+  return (await fetchFinals(before, limit)).map(finalFromApi)
+}
+
+export async function finalDetail(final: number): Promise<FinalResult | null> {
+  try {
+    return finalFromApi(await fetchFinal(final))
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null
+    throw error
+  }
+}
+
+export async function hallOfFame(limit: number, before = Number.MAX_SAFE_INTEGER): Promise<HallEntry[]> {
+  return (await fetchChampions(before, limit)).map(hallFromApi)
 }

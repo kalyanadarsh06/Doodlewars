@@ -25,10 +25,11 @@
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.round-thumb svg,
-.entry-frame svg {
+.round-thumb img,
+.entry-frame img {
   width: 100%;
   height: 100%;
+  object-fit: contain;
 }
 
 .round-card:hover .round-thumb,
@@ -37,20 +38,22 @@
   box-shadow: 8px 8px 0 var(--ink);
 }
 
-.round-card:hover svg,
-.entry:hover svg {
+.round-card:hover img,
+.entry:hover img {
   animation: boil 0.45s steps(1) infinite;
 }
 
 .round-empty {
-  padding: 4px 12px;
+  max-width: 88%;
+  padding: 4px 10px;
   border: 2px dashed var(--muted);
   color: var(--muted);
   font-family: var(--font-caps);
-  font-size: 20px;
-  letter-spacing: 0.12em;
+  font-size: 18px;
+  line-height: 1.1;
+  letter-spacing: 0.1em;
+  text-align: center;
   text-transform: uppercase;
-  white-space: nowrap;
   transform: rotate(-6deg);
 }
 
@@ -81,15 +84,6 @@
 }
 
 .round-meta {
-  color: var(--muted);
-  font-size: 17px;
-}
-
-.example-note {
-  justify-self: start;
-  padding: 6px 14px;
-  border: 2px dashed var(--ink);
-  border-radius: 12px 18px 14px 20px;
   color: var(--muted);
   font-size: 17px;
 }
@@ -186,9 +180,10 @@
   transform: rotate(-1.5deg);
 }
 
-.winner-art svg {
+.winner-art img {
   width: 100%;
   height: 100%;
+  object-fit: contain;
 }
 
 .winner-info {
@@ -222,31 +217,6 @@
   font-size: 20px;
 }
 
-.winner-amount {
-  display: grid;
-  margin-top: 6px;
-  padding: 12px 26px 14px;
-  border: var(--line) solid var(--ink);
-  background: var(--green);
-  box-shadow: 5px 5px 0 var(--ink);
-  transform: rotate(-1.5deg);
-}
-
-.winner-amount span {
-  font-family: var(--font-caps);
-  font-size: 16px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-.winner-amount strong {
-  font-family: var(--font-caps);
-  font-size: clamp(44px, 5vw, 68px);
-  font-weight: 400;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
-
 .winner-split {
   font-size: 20px;
 }
@@ -255,6 +225,40 @@
   max-width: 48ch;
   color: var(--muted);
   font-size: 17px;
+}
+
+.payout-note a,
+.tx-link {
+  color: var(--ink);
+  text-underline-offset: 3px;
+}
+
+.judge-note {
+  display: grid;
+  gap: 4px;
+  max-width: 44ch;
+  margin: 4px 0 0;
+  padding: 10px 16px;
+  border-left: 5px solid var(--yellow);
+  background: var(--paper);
+}
+
+.judge-note p {
+  font-size: 20px;
+}
+
+.judge-note cite {
+  color: var(--muted);
+  font-family: var(--font-caps);
+  font-size: 15px;
+  font-style: normal;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.empty-note {
+  color: var(--muted);
+  font-size: 19px;
 }
 
 .entry {
@@ -294,6 +298,30 @@
 .entry-meta {
   color: var(--muted);
   font-size: 16px;
+}
+
+.entry figcaption .entered-badge,
+.entry figcaption .entry-meta {
+  justify-self: center;
+}
+
+.entered-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 12px 1px 6px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--green);
+  font-family: var(--font-caps);
+  font-size: 14px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.entered-badge svg {
+  width: 18px;
+  height: 18px;
 }
 
 .round-nav {
@@ -345,4 +373,8 @@
     font-size: 15px;
   }
 
+}
+
+.round-page > .rule-heading {
+  margin-top: 36px;
 }

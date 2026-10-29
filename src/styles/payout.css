@@ -1,0 +1,149 @@
+.payout {
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 72px var(--gutter) 0;
+}
+
+.payout-card {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: center;
+  gap: 32px 48px;
+  padding: 36px 48px;
+  border: var(--line) solid var(--ink);
+  background: var(--white);
+  box-shadow: 8px 8px 0 var(--ink);
+}
+
+.payout-main {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+}
+
+.payout-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 16px;
+  border: var(--line) solid var(--ink);
+  border-radius: 999px;
+  background: var(--yellow);
+  font-family: var(--font-caps);
+  font-size: 18px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.payout-clock {
+  font-family: var(--font-caps);
+  font-size: clamp(88px, 12vw, 160px);
+  font-weight: 400;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.payout-label svg {
+  width: 26px;
+  height: 26px;
+}
+
+.payout-at {
+  color: var(--muted);
+  font-size: 20px;
+}
+
+.payout-side {
+  display: grid;
+  justify-items: start;
+  gap: 18px;
+  padding-left: 48px;
+  border-left: 2.5px dashed var(--ink);
+}
+
+.payout-rounds {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  font-size: 20px;
+}
+
+.payout-pips {
+  display: flex;
+  gap: 8px;
+}
+
+.payout-pips i {
+  width: 22px;
+  height: 22px;
+  border: var(--line) solid var(--ink);
+  border-radius: 50%;
+  background: var(--white);
+}
+
+.payout-pips i.is-done {
+  background: var(--ink);
+}
+
+.payout-pips i.is-live {
+  background: var(--red);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.payout-round {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 20px;
+}
+
+.payout-round strong {
+  min-width: 2.6em;
+  font-family: var(--font-caps);
+  font-size: 26px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.payout-cta {
+  font-variant-numeric: tabular-nums;
+}
+
+.payout-blurb {
+  max-width: 36ch;
+  color: var(--muted);
+  font-size: 20px;
+}
+
+@media (max-width: 980px) {
+  .payout-card {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 28px;
+  }
+
+  .payout-side {
+    justify-items: center;
+    padding: 24px 0 0;
+    text-align: center;
+    border-top: 2.5px dashed var(--ink);
+    border-left: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .payout {
+    padding-top: 48px;
+  }
+
+  .payout-card {
+    padding: 22px 20px;
+    box-shadow: 5px 5px 0 var(--ink);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .payout-pips i.is-live {
+    animation: none;
+  }
+}

@@ -3,7 +3,11 @@ export function fileName(title: string): string {
 }
 
 export function prettyTitle(title: string): string {
-  return title.replace(/_/g, ' ')
+  return title.replace(/_/g, ' ').trim()
+}
+
+export function drawingTitle(drawing: { title: string }): string {
+  return prettyTitle(drawing.title) || 'Untitled'
 }
 
 export function clock(ms: number): string {
@@ -15,14 +19,14 @@ export function count(amount: number, noun: string): string {
   return `${amount} ${noun}${amount === 1 ? '' : 's'}`
 }
 
-export function usd(amount: number): string {
-  return amount.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
-}
-
 export function shortAddress(address: string): string {
   return `${address.slice(0, 6)}…${address.slice(-4)}`
 }
 
 export function when(ms: number): string {
   return new Date(ms).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
+export function timeOfDay(ms: number): string {
+  return new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 }

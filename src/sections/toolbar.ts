@@ -29,11 +29,19 @@ export function toolbar(pad: Sketchpad): HTMLElement {
     select(sizes, size)
   }
 
+  const picker = h('input', { type: 'color', value: '#ff7ac6', 'aria-label': 'Pick any color', title: 'Pick any color' })
+  const custom = h('label', { class: 'swatch swatch-custom' }, picker)
+
   const setColor = (color: string): void => {
     pad.color = color
     select(colors, color)
+    const own = !colors.has(color)
+    custom.classList.toggle('is-active', own)
+    if (own) custom.style.setProperty('--swatch', color)
     setTool('pen')
   }
+
+  picker.addEventListener('input', () => setColor(picker.value))
 
   tools.set('pen', tool('Pen (B)', svg(icons.pen), () => setTool('pen')))
   tools.set('eraser', tool('Eraser (E)', svg(icons.eraser), () => setTool('eraser')))
@@ -62,7 +70,7 @@ export function toolbar(pad: Sketchpad): HTMLElement {
     h('div', { class: 'dock-group' }, ...tools.values()),
     h('div', { class: 'dock-group dock-sizes' }, ...sizes.values()),
     h('div', { class: 'dock-group' }, undo, redo, clear),
-    h('div', { class: 'dock-colors', role: 'group', 'aria-label': 'Colors' }, ...colors.values()),
+    h('div', { class: 'dock-colors', role: 'group', 'aria-label': 'Colors' }, ...colors.values(), custom),
   )
 
   window.addEventListener('keydown', (event) => {

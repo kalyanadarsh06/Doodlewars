@@ -25,3 +25,12 @@ export function svg(markup: string): SVGElement {
 export function ruleHeading(text: string, level: 'h2' | 'h3' = 'h3'): HTMLElement {
   return h(level, { class: 'rule-heading' }, h('span', {}, text))
 }
+
+export function download(blob: Blob, name: string): void {
+  const url = URL.createObjectURL(blob)
+  const link = h('a', { href: url, download: name })
+  document.body.append(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}

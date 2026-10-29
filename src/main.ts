@@ -1,18 +1,21 @@
 import './styles/index.css'
+import { loadLive } from './game/live'
 import { anchorTarget, currentRoute, routeKey, type Route } from './router'
 import { cta, footer } from './sections/footer'
 import { header } from './sections/header'
 import { faq } from './sections/faq'
+import { finalPage } from './sections/finalpage'
 import { how } from './sections/how'
 import { judge } from './sections/judge'
 import { landing } from './sections/landing'
+import { payout } from './sections/payout'
 import { recent } from './sections/recent'
 import { roundPage } from './sections/roundpage'
 import { rounds } from './sections/rounds'
 import { studio } from './sections/studio'
 import { suggest } from './sections/suggest'
+import { hall, winnersPage } from './sections/winners'
 import { h } from './ui/dom'
-import { discoverWallets } from './wallet/wallet'
 
 function view(route: Route): HTMLElement {
   switch (route.name) {
@@ -20,10 +23,14 @@ function view(route: Route): HTMLElement {
       return studio()
     case 'rounds':
       return rounds()
+    case 'winners':
+      return winnersPage()
     case 'round':
       return roundPage(route.number)
+    case 'final':
+      return finalPage(route.number)
     case 'home':
-      return h('div', { class: 'home' }, landing(), how(), judge(), recent(), suggest(), faq(), cta())
+      return h('div', { class: 'home' }, landing(), payout(), how(), judge(), hall(), recent(), h('div', { class: 'home-pair' }, faq(), suggest()), cta())
   }
 }
 
@@ -48,8 +55,9 @@ function render(): void {
 const app = document.querySelector<HTMLDivElement>('#app')
 
 if (app) {
-  discoverWallets()
-  app.append(header(), main, footer())
-  render()
-  window.addEventListener('hashchange', render)
+  loadLive().then(() => {
+    app.append(header(), main, footer())
+    render()
+    window.addEventListener('hashchange', render)
+  })
 }

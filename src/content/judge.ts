@@ -13,3 +13,14 @@ export const JUDGE_SVG = `<svg class="judge" viewBox="-10 0 260 240" fill="none"
 <path d="M158 198c28 8 54 6 78-8" stroke-width="18"/>
 <g transform="translate(220 130) rotate(-20)"><g class="judge-gavel"><rect x="-5" y="12" width="10" height="62" rx="5" fill="#c97b3d"/><rect x="-26" y="-13" width="52" height="26" rx="7" fill="#f1a55a"/><path d="M-15 -5h18" stroke="#ffffff" stroke-width="4"/><rect x="-33" y="-17" width="11" height="34" rx="4" fill="#161616"/><rect x="22" y="-17" width="11" height="34" rx="4" fill="#161616"/></g><circle cy="62" r="11" fill="#ffffff"/></g>
 </svg>`
+
+export const JUDGE_SCORES = ['Fits the prompt', 'Looks real', 'Cool & colorful', 'Creative'] as const
+
+export const JUDGE_QUIPS = [
+  'Impress me.',
+  'Rough lines are fine. Boring ones aren’t.',
+  'Make it weird. I like weird.',
+  'I’ve seen a thousand whales. Surprise me.',
+  'Show me what you’ve got.',
+  'Color is free. Use it.',
+] as const

@@ -1,126 +1,159 @@
-import { SHAPES, WINNER_SHARE } from '../config'
-import { roundResult, type Entry, type RoundResult } from '../game/results'
+import { messageOf } from '../api/client'
+import { SHAPES } from '../config'
+import { JUDGE_NAME } from '../content/judge'
+import { onLiveRound } from '../game/live'
+import { roundSettled, resultKey, roundDetail, type Drawing, type FinalLink, type RoundDetail } from '../game/results'
 import { currentRound, msLeft, roundAt } from '../game/round'
-import { onTick } from '../game/ticker'
-import { DRAW_HREF, ROUNDS_HREF, roundHref } from '../router'
+import { onRefresh } from '../game/ticker'
+import { DRAW_HREF, finalHref, ROUNDS_HREF, roundHref } from '../router'
 import { h, ruleHeading, svg } from '../ui/dom'
 import { icons } from '../ui/icons'
-import { clock, prettyTitle, shortAddress, usd, when } from '../util/format'
-import { exampleNote } from './roundcard'
+import { clock, count, drawingTitle, timeOfDay, when } from '../util/format'
+import { judgeNote } from './judgenote'
+import { drawingImage } from './roundcard'
 
-function artist(entry: Entry): string {
-  return entry.wallet ? shortAddress(entry.wallet) : 'example wallet'
+const REFRESH_MS = 10 * 1000
+
+function finalLink(final: FinalLink): HTMLElement {
+  return h('a', { href: finalHref(final.number), class: 'btn btn-small' }, `See the ${timeOfDay(final.endsAt)} Final`, svg(icons.arrow))
 }
 
-function winnerCard(result: RoundResult, winner: Entry): HTMLElement {
+function finalNote(final: FinalLink): Node[] {
+  const time = timeOfDay(final.endsAt)
+  if (final.champion) return [h('p', { class: 'winner-split' }, `★ Won the ${time} Final. The creator fees went straight to their wallet.`), finalLink(final)]
+  const text = final.settled ? `Made the ${time} Final. Didn’t take it this time.` : `Headed to the ${time} Final. The champion takes the creator fees.`
+  return [h('p', { class: 'winner-split' }, text), finalLink(final)]
+}
+
+function winnerCard(result: RoundDetail, winner: Drawing): HTMLElement {
   return h(
     'div',
     { class: 'winner-card' },
-    h('div', { class: 'winner-art' }, svg(winner.svg)),
+    h('div', { class: 'winner-art' }, drawingImage(winner)),
     h(
       'div',
       { class: 'winner-info' },
-      h('span', { class: 'winner-kicker' }, '★ Winner'),
-      h('h2', { class: 'winner-title' }, prettyTitle(winner.title)),
-      h('p', { class: 'winner-by' }, `Drawn by ${artist(winner)}`),
-      result.prizeUsd === null ? null : h('p', { class: 'winner-amount' }, h('span', {}, 'Won'), h('strong', {}, usd(result.prizeUsd))),
-      result.feesUsd === null ? null : h('p', { class: 'winner-split' }, `${WINNER_SHARE}% of the ${usd(result.feesUsd)} in fees traded this round.`),
-      h('p', { class: 'payout-note' }, 'Sent automatically to the wallet that entered.'),
+      h('span', { class: 'winner-kicker' }, result.final.champion ? '★ Final champion' : '★ Round winner'),
+      h('h2', { class: 'winner-title' }, drawingTitle(winner)),
+      judgeNote(result.note),
+      ...finalNote(result.final),
     ),
   )
 }
 
-function rolloverCard(result: RoundResult): HTMLElement {
+function emptyCard(result: RoundDetail): HTMLElement {
   return h(
     'div',
     { class: 'winner-card is-empty' },
     h(
       'div',
       { class: 'winner-info' },
-      h('span', { class: 'winner-kicker' }, 'No winner'),
-      h('h2', { class: 'winner-title' }, 'Nobody drew this one.'),
-      result.prizeUsd === null ? null : h('p', { class: 'winner-split' }, `${usd(result.prizeUsd)} rolled over to round ${result.number + 1}.`),
+      h('span', { class: 'winner-kicker' }, result.entries ? 'No winner' : 'No entries'),
+      h('h2', { class: 'winner-title' }, result.entries ? 'No winner this round.' : 'Nobody drew this one.'),
+      judgeNote(result.note),
     ),
   )
 }
 
-function entryCard(entry: Entry, index: number, winner: Entry | null): HTMLElement {
+function judgingCard(result: RoundDetail): HTMLElement {
+  return h(
+    'div',
+    { class: 'winner-card is-empty' },
+    h(
+      'div',
+      { class: 'winner-info' },
+      h('span', { class: 'winner-kicker' }, 'Judging'),
+      h('h2', { class: 'winner-title' }, `${JUDGE_NAME} is looking at ${count(result.entries, 'drawing')}.`),
+      h('p', { class: 'payout-note' }, 'Winner drops here in a minute or two. No need to refresh.'),
+    ),
+  )
+}
+
+function entryCard(entry: Drawing, index: number, winner: Drawing | null): HTMLElement {
   return h(
     'figure',
     { class: 'entry' },
     h(
       'div',
       { class: `entry-frame ${SHAPES[index % SHAPES.length]}` },
-      svg(entry.svg),
-      entry === winner ? h('span', { class: 'entry-badge', 'aria-label': 'Winner' }, '★') : null,
+      drawingImage(entry),
+      entry.id === winner?.id ? h('span', { class: 'entry-badge', 'aria-label': 'Winner' }, '★') : null,
     ),
     h(
       'figcaption',
       {},
-      h('span', { class: 'entry-title' }, prettyTitle(entry.title)),
-      h('span', { class: 'entry-meta' }, artist(entry)),
+      h('span', { class: 'entry-title' }, drawingTitle(entry)),
+      entry.entered ? h('span', { class: 'entered-badge' }, svg(icons.check), 'Entered') : h('span', { class: 'entry-meta' }, 'Just for fun'),
     ),
   )
 }
 
-function liveBody(result: RoundResult): Node[] {
-  const time = h('strong', {})
-  onTick((now) => {
-    time.textContent = clock(msLeft(result.round, now))
-  })
-  return [
-    h(
-      'div',
-      { class: 'live-card blob-d' },
-      h(
-        'div',
-        { class: 'live-card-copy' },
-        h('span', { class: 'live-card-time' }, time, ' left to draw'),
-        h('p', {}, 'The winner shows up here when the timer ends.'),
-      ),
-      h('a', { href: DRAW_HREF, class: 'btn btn-big' }, 'Draw it', svg(icons.arrow)),
-    ),
-  ]
+function summaryCard(result: RoundDetail): HTMLElement {
+  if (result.status === 'judging') return judgingCard(result)
+  return result.winner ? winnerCard(result, result.winner) : emptyCard(result)
 }
 
-function endedBody(result: RoundResult): Node[] {
-  const { entries, winner } = result
+function endedBody(result: RoundDetail): Node[] {
+  const { drawings, winner } = result
   return [
-    result.example ? exampleNote() : null,
-    winner ? winnerCard(result, winner) : rolloverCard(result),
-    entries.length ? ruleHeading(`All drawings (${entries.length})`, 'h2') : null,
-    entries.length ? h('div', { class: 'entry-grid' }, ...entries.map((entry, index) => entryCard(entry, index, winner))) : null,
+    summaryCard(result),
+    drawings.length ? ruleHeading(`All drawings (${drawings.length})`, 'h2') : null,
+    drawings.length ? h('div', { class: 'entry-grid' }, ...drawings.map((entry, index) => entryCard(entry, index, winner))) : null,
   ].filter((node): node is HTMLElement => node !== null)
 }
 
-function roundNav(result: RoundResult): HTMLElement {
+function liveBody(): HTMLElement {
+  const time = h('strong', {})
+  const entries = h('p', {})
+  onLiveRound((live, now) => {
+    time.textContent = clock(msLeft(live.round, now))
+    const next = `Winner drops here at 0:00, then heads to the ${timeOfDay(live.finalEndsAt)} Final.`
+    entries.textContent = live.entries === null ? next : `${count(live.entries, 'drawing')} so far. ${next}`
+  })
   return h(
-    'nav',
-    { class: 'round-nav', 'aria-label': 'Other rounds' },
-    result.number > 1 ? h('a', { href: roundHref(result.number - 1), class: 'btn btn-small' }, `← Round ${result.number - 1}`) : h('span'),
-    result.live ? null : h('a', { href: roundHref(result.number + 1), class: 'btn btn-small' }, `Round ${result.number + 1} →`),
+    'div',
+    { class: 'live-card blob-d' },
+    h('div', { class: 'live-card-copy' }, h('span', { class: 'live-card-time' }, time, ' left to draw'), entries),
+    h('a', { href: DRAW_HREF, class: 'btn btn-big' }, 'Draw it', svg(icons.arrow)),
   )
 }
 
-function content(result: RoundResult): Node[] {
-  return [
-    h('a', { href: ROUNDS_HREF, class: 'back-link' }, '← All rounds'),
-    h(
-      'header',
-      { class: 'round-head' },
-      h('span', { class: 'round-label' }, result.live ? h('i', { class: 'live-dot' }) : null, `Round ${result.number} · ${result.live ? 'live now' : when(result.startsAt)}`),
-      h('h1', { class: 'prompt-text round-title' }, h('mark', {}, result.prompt)),
-    ),
-    ...(result.live ? liveBody(result) : endedBody(result)),
-    roundNav(result),
-  ]
+function roundNav(number: number, live: boolean): HTMLElement {
+  return h(
+    'nav',
+    { class: 'round-nav', 'aria-label': 'Other rounds' },
+    number > 1 ? h('a', { href: roundHref(number - 1), class: 'btn btn-small' }, `← Round ${number - 1}`) : h('span'),
+    live ? null : h('a', { href: roundHref(number + 1), class: 'btn btn-small' }, `Round ${number + 1} →`),
+  )
 }
 
-function missing(): Node[] {
-  return [
-    h('a', { href: ROUNDS_HREF, class: 'back-link' }, '← All rounds'),
-    h('h1', { class: 'prompt-text round-title' }, 'That round hasn’t happened yet.'),
-  ]
+function head(number: number, label: string, prompt: Node | string, live: boolean): HTMLElement {
+  return h(
+    'header',
+    { class: 'round-head' },
+    h('span', { class: 'round-label' }, live ? h('i', { class: 'live-dot' }) : null, `Round ${number} · ${label}`),
+    h('h1', { class: 'prompt-text round-title' }, h('mark', {}, prompt)),
+  )
+}
+
+function backLink(): HTMLElement {
+  return h('a', { href: ROUNDS_HREF, class: 'back-link' }, '← Gallery')
+}
+
+function liveContent(number: number): Node[] {
+  const prompt = h('span', {})
+  onLiveRound((live) => {
+    if (live.number === number) prompt.textContent = live.prompt
+  })
+  return [backLink(), head(number, 'live now', prompt, true), liveBody(), roundNav(number, true)]
+}
+
+function endedContent(result: RoundDetail): Node[] {
+  return [backLink(), head(result.number, when(result.startsAt), result.prompt, false), ...endedBody(result), roundNav(result.number, false)]
+}
+
+function message(number: number, text: string): Node[] {
+  return [backLink(), h('h1', { class: 'prompt-text round-title' }, text), roundNav(number, false)]
 }
 
 export function roundPage(number: number): HTMLElement {
@@ -128,16 +161,30 @@ export function roundPage(number: number): HTMLElement {
   const round = roundAt(number)
 
   if (!Number.isInteger(number) || number < 1 || round > currentRound()) {
-    page.append(...missing())
+    page.append(backLink(), h('h1', { class: 'prompt-text round-title' }, 'That round hasn’t happened yet.'))
     return page
   }
 
-  let ended = round < currentRound()
-  page.append(...content(roundResult(round)))
-  onTick((now) => {
-    if (ended || currentRound(now) <= round) return
-    ended = true
-    page.replaceChildren(...content(roundResult(round, now)))
+  let shown = ''
+  let final = false
+  onRefresh(REFRESH_MS, (now) => {
+    if (round >= currentRound(now)) {
+      if (shown !== 'live') page.replaceChildren(...liveContent(number))
+      shown = 'live'
+      return
+    }
+    if (final) return
+    roundDetail(round)
+      .then((result) => {
+        const key = result ? resultKey(result) : 'missing'
+        if (key === shown) return
+        shown = key
+        final = result ? roundSettled(result) : true
+        page.replaceChildren(...(result ? endedContent(result) : message(number, 'This round didn’t run.')))
+      })
+      .catch((error) => {
+        if (!shown) page.replaceChildren(...message(number, messageOf(error)))
+      })
   })
   return page
 }

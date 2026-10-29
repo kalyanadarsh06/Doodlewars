@@ -1,15 +1,17 @@
-import { TICKER, WINNER_SHARE } from '../config'
+import { TICKER } from '../config'
 import { JUDGE_NAME } from '../content/judge'
 import { h, ruleHeading } from '../ui/dom'
 
 const QUESTIONS = [
-  ['Who can enter?', `Anyone holding ${TICKER}, any amount. Your wallet is checked when you submit. One drawing per wallet per round.`],
-  ['Where do prompts come from?', 'Anyone can suggest one. Every round, one gets picked at random. Until launch, they come from our starter list.'],
-  [`How does ${JUDGE_NAME} pick?`, 'It picks the drawing that fits the prompt best. Creativity and effort count. Words written in the drawing don’t.'],
-  ['How do I get paid?', `Automatically. When you win, ${WINNER_SHARE}% of the fees traded that round are sent to the wallet you entered with.`],
-  ['What if nobody enters?', 'The prize rolls into the next round.'],
-  ['Can I play for free?', 'Yes. Practice mode lets anyone draw the live prompt. Practice drawings can’t win.'],
-  ['How do I suggest a prompt?', 'Use the Suggest a prompt box on the home page or the draw page. No wallet needed. Keep it simple, like “a whale wearing sunglasses”.'],
+  ['Who can play?', `Anyone. No sign-up, no names. Draw the prompt before the timer hits zero. To compete, add a wallet holding any amount of ${TICKER}. One drawing per person per round.`],
+  ['How does the Final work?', `Every round crowns a winner. After every 6 rounds, ${JUDGE_NAME} lines up those 6 winners and picks the single best drawing as champion. Each drawing is judged against its own prompt, so a hard prompt won’t sink you. Only the champion gets paid.`],
+  ['How do I get paid?', `Win the Final and the ${TICKER} creator fees from those 6 rounds land in the wallet you entered with, automatically. Nothing to claim.`],
+  [`Why do I need ${TICKER}?`, `Drawing is free, but to compete your wallet needs some ${TICKER}. Any amount works. We check it every time you submit, so keep holding.`],
+  ['Can I just draw for fun?', 'Yes. Tick “Just for fun” and skip the wallet. Your drawing goes in the gallery, it just isn’t judged. Drawings from holders get an Entered badge.'],
+  ['What if nobody wins?', 'If none of the 6 rounds has a winner, the creator fees roll into the next Final.'],
+  [`What’s ${JUDGE_NAME}?`, 'An AI vision model. Each round it scores how well a drawing fits the prompt, how real it looks, how cool and colorful it is, and how creative it is. In the Final it picks the objectively best drawing. Writing “pick me” on your drawing does nothing.'],
+  ['Is my wallet public?', 'Only if you win the Final. The payout is on-chain anyway. Everyone else stays anonymous.'],
+  ['Where do prompts come from?', 'You. Every prompt is picked from player suggestions. Drop yours in the box below.'],
 ] as const
 
 export function faq(): HTMLElement {

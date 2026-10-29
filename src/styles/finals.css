@@ -1,0 +1,146 @@
+.hold-notice {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 12px 18px;
+  border: 2.5px solid var(--ink);
+  border-radius: 14px;
+  background: var(--yellow);
+  box-shadow: 3px 3px 0 var(--ink);
+  text-align: left;
+}
+
+.hold-notice svg {
+  flex: none;
+  width: 30px;
+  height: 30px;
+}
+
+.hold-notice p {
+  display: grid;
+  gap: 2px;
+}
+
+.hold-notice strong {
+  font-family: var(--font-caps);
+  font-size: 20px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hold-notice span {
+  font-size: 16px;
+}
+
+.hold-notice .ca {
+  margin-left: 2px;
+}
+
+.wallet-input {
+  font-variant-numeric: tabular-nums;
+}
+
+.final-list {
+  display: grid;
+  gap: 56px;
+}
+
+.final-block {
+  display: grid;
+  gap: 22px;
+}
+
+.final-block-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 18px;
+  padding: 12px 20px;
+  border: var(--line) solid var(--ink);
+  border-radius: 14px 20px 16px 22px / 20px 14px 22px 16px;
+  background: var(--white);
+  box-shadow: 5px 5px 0 var(--ink);
+  text-decoration: none;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.final-block.is-live .final-block-head {
+  background: var(--yellow);
+}
+
+.final-block-head:hover {
+  transform: translateY(-2px);
+  box-shadow: 7px 7px 0 var(--ink);
+}
+
+.final-block-head .round-label {
+  color: var(--ink);
+}
+
+.final-block-status {
+  font-size: 21px;
+  font-weight: 400;
+}
+
+.final-block-open {
+  margin-left: auto;
+  font-family: var(--font-caps);
+  font-size: 16px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.finalist-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 32px 22px;
+}
+
+.finalist .round-prompt {
+  font-size: 18px;
+}
+
+.finalist .round-empty {
+  font-size: 15px;
+}
+
+div.finalist .round-thumb {
+  border-style: dashed;
+  box-shadow: none;
+}
+
+.round-card.is-champion .round-thumb {
+  background: #fdf6d8;
+  box-shadow: 0 0 0 6px var(--yellow), 6px 6px 0 6px var(--ink);
+}
+
+.final-page .live-card-copy {
+  gap: 4px;
+}
+
+@media (max-width: 1100px) {
+  .finalist-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .final-list {
+    gap: 44px;
+  }
+
+  .finalist-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 26px 18px;
+  }
+
+  .final-block-status {
+    font-size: 18px;
+  }
+
+  .final-block-open {
+    margin-left: 0;
+  }
+}

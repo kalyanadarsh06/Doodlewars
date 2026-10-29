@@ -13,6 +13,7 @@ interface Stroke {
 
 const BASE_WIDTH = 800
 const ERASER_SCALE = 2.4
+const DOT_RADIUS = 1
 
 function paint(ctx: CanvasRenderingContext2D, width: number, height: number, strokes: readonly Stroke[]): void {
   ctx.clearRect(0, 0, width, height)
@@ -26,7 +27,8 @@ function paint(ctx: CanvasRenderingContext2D, width: number, height: number, str
     ctx.strokeStyle = stroke.color
     ctx.fillStyle = stroke.color
     ctx.lineWidth = lineWidth
-    if (points.length === 1) {
+    const [fx, fy] = points[0]
+    if (points.every(([x, y]) => Math.hypot(x - fx, y - fy) < DOT_RADIUS)) {
       ctx.beginPath()
       ctx.arc(points[0][0], points[0][1], lineWidth / 2, 0, Math.PI * 2)
       ctx.fill()
@@ -166,8 +168,14 @@ export class Sketchpad {
   private extend(event: PointerEvent): void {
     if (!this.current) return
     const events = event.getCoalescedEvents?.() ?? [event]
-    for (const item of events.length ? events : [event]) this.current.points.push(this.point(item))
-    this.redraw()
+    const { points } = this.current
+    const before = points.length
+    for (const item of events.length ? events : [event]) {
+      const next = this.point(item)
+      const last = points[points.length - 1]
+      if (next[0] !== last[0] || next[1] !== last[1]) points.push(next)
+    }
+    if (points.length > before) this.redraw()
   }
 
   stopStroke(): void {
