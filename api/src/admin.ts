@@ -40,7 +40,7 @@ export async function hideEntry(request: Request, env: Env, id: number): Promise
 }
 
 export async function listPayouts(env: Env, url: URL): Promise<Response> {
-  const { results } = await env.DB.prepare('SELECT id, round_id, recipient, amount, tx_hash, status, block FROM payouts WHERE status = ? ORDER BY id DESC LIMIT ?')
+  const { results } = await env.DB.prepare('SELECT id, final_id, recipient, amount, tx_hash, status, block FROM payouts WHERE status = ? ORDER BY id DESC LIMIT ?')
     .bind(status(url, PAYOUT_STATUSES, 'failed'), PAGE_MAX)
     .all()
   return json({ payouts: results })

@@ -1,14 +1,16 @@
+import type { Address } from 'viem'
 import { ROUND_MS } from '../../src/config'
-import { currentRound } from '../../src/game/round'
+import { currentRound, finalEnd, finalOf, finalRounds } from '../../src/game/round'
 import { broadcast, connect, receipt, signTransfer, snapshot, type Chain } from './chain'
-import { CLAIM_MS, GRACE_MS, JUDGE_GIVE_UP_MS, LOCK_MS, REBROADCAST_MS } from './constants'
+import { GRACE_MS, JUDGE_GIVE_UP_MS, LOCK_MS, REBROADCAST_MS } from './constants'
 import {
   acquireLock,
-  confirmedOutflow,
   ensureMissedRound,
   ensureRound,
+  finalsWithStatus,
+  getFinal,
   getMeta,
-  getRound,
+  outflowBetween,
   pendingPayouts,
   releaseLock,
   roundsWithStatus,
@@ -16,30 +18,21 @@ import {
   visibleEntries,
   type Anchor,
   type Checkpoint,
+  type FinalRow,
   type RoundRow,
 } from './db'
 import { isLive, type Env } from './env'
-import { judge } from './judge'
+import { judgeFinal, judgeRound, type Finalist, type Verdict } from './judge'
 import { feesBetween } from './money'
-
-export interface Live {
-  round: number
-  fees: string
-}
+import { collectFees } from './pons'
+import { reviewSuggestions } from './prompts'
 
 export function roundEnd(id: number): number {
   return (id + 1) * ROUND_MS
 }
 
-async function updatePrice(env: Env): Promise<void> {
-  try {
-    const response = await fetch(env.PRICE_URL)
-    const body: { data?: { amount?: string } } = await response.json()
-    const price = Number(body.data?.amount)
-    if (response.ok && Number.isFinite(price) && price > 0) await setMeta(env.DB, 'eth_usd', price)
-  } catch (error) {
-    console.error('price update failed', error)
-  }
+export function firstFinal(anchor: Anchor): number {
+  return finalOf(anchor.round + 1)
 }
 
 async function ensureAnchor(env: Env, chain: Chain, current: number): Promise<Anchor> {
@@ -52,44 +45,13 @@ async function ensureAnchor(env: Env, chain: Chain, current: number): Promise<An
   return anchor
 }
 
-async function checkpointBefore(env: Env, anchor: Anchor, id: number): Promise<Checkpoint> {
-  if (id - 1 <= anchor.round) return anchor
-  const previous = await getRound(env.DB, id - 1)
-  if (!previous || previous.close_block === null || previous.close_balance === null) throw new Error(`Round ${id - 1} is not closed.`)
-  return { block: previous.close_block, balance: previous.close_balance }
-}
-
-async function refreshPayouts(env: Env, chain: Chain): Promise<void> {
-  for (const payout of await pendingPayouts(env.DB)) {
-    const result = await receipt(chain, payout.tx_hash)
-    if (!result) continue
-    await env.DB.prepare('UPDATE payouts SET status = ?, block = ? WHERE id = ?')
-      .bind(result.success ? 'confirmed' : 'failed', result.block, payout.id)
-      .run()
-  }
-}
-
-async function closeRound(env: Env, chain: Chain, anchor: Anchor, id: number, now: number): Promise<void> {
-  const previous = await checkpointBefore(env, anchor, id)
-  const { block, balance } = await snapshot(chain)
-  await refreshPayouts(env, chain)
-  const outflow = await confirmedOutflow(env.DB, previous.block, block)
-  const fees = feesBetween(BigInt(previous.balance), balance, outflow)
-  const price = await getMeta<number>(env.DB, 'eth_usd')
-  await ensureMissedRound(env.DB, id)
-  await env.DB.prepare(
-    "UPDATE rounds SET status = 'closed', close_block = ?, close_balance = ?, fees = ?, eth_usd = ?, closed_at = ? WHERE id = ? AND status = 'open'",
-  )
-    .bind(block, balance.toString(), fees.toString(), price, now, id)
-    .run()
-}
-
-async function closeRounds(env: Env, chain: Chain, anchor: Anchor, now: number): Promise<void> {
+async function closeRounds(env: Env, anchor: Anchor, now: number): Promise<void> {
   const last = await env.DB.prepare("SELECT MAX(id) AS id FROM rounds WHERE id > ? AND status NOT IN ('open', 'void')")
     .bind(anchor.round)
     .first<{ id: number | null }>()
   for (let id = (last?.id ?? anchor.round) + 1; now >= roundEnd(id) + GRACE_MS; id += 1) {
-    await closeRound(env, chain, anchor, id, now)
+    await ensureMissedRound(env.DB, id)
+    await env.DB.prepare("UPDATE rounds SET status = 'closed', closed_at = ? WHERE id = ? AND status = 'open'").bind(now, id).run()
   }
 }
 
@@ -107,18 +69,102 @@ async function judgeRounds(env: Env, now: number): Promise<void> {
       continue
     }
     try {
-      const verdict = await judge(env, round.prompt, entries)
+      const verdict = await judgeRound(env, round.prompt, entries)
+      const note = verdict.winner === null && !entries.some((entry) => entry.entered) ? 'Only just-for-fun drawings this round, so there’s no winner.' : verdict.reason
       if (verdict.disqualified.length > 0) {
         await env.DB.prepare(`UPDATE entries SET hidden = 1 WHERE round_id = ? AND id IN (${verdict.disqualified.map(() => '?').join(', ')})`)
           .bind(round.id, ...verdict.disqualified)
           .run()
       }
-      await markJudged(env, round, verdict.winner, verdict.reason, now)
+      await markJudged(env, round, verdict.winner, note, now)
     } catch (error) {
       console.error(`judging round ${round.id} failed`, error)
       if (now < roundEnd(round.id) + JUDGE_GIVE_UP_MS) return
-      await markJudged(env, round, null, 'The judge could not review this round, so the prize rolls over.', now)
+      await markJudged(env, round, null, 'The judge could not review this round.', now)
     }
+  }
+}
+
+async function refreshPayouts(env: Env, chain: Chain): Promise<void> {
+  for (const payout of await pendingPayouts(env.DB)) {
+    const result = await receipt(chain, payout.tx_hash)
+    if (!result) continue
+    await env.DB.prepare('UPDATE payouts SET status = ?, block = ?, gas = ? WHERE id = ?')
+      .bind(result.success ? 'confirmed' : 'failed', result.block, result.gas.toString(), payout.id)
+      .run()
+  }
+}
+
+async function checkpointBefore(env: Env, anchor: Anchor, id: number): Promise<Checkpoint> {
+  if (id <= firstFinal(anchor)) return anchor
+  const previous = await getFinal(env.DB, id - 1)
+  if (!previous) throw new Error(`Final ${id - 1} is not closed.`)
+  return { block: previous.close_block, balance: previous.close_balance }
+}
+
+async function closeFinals(env: Env, chain: Chain, anchor: Anchor, now: number): Promise<void> {
+  const last = await env.DB.prepare('SELECT MAX(id) AS id FROM finals').first<{ id: number | null }>()
+  const next = Math.max((last?.id ?? 0) + 1, firstFinal(anchor))
+  if (now < finalEnd(next) + GRACE_MS) return
+  await collectFees(chain, env.TOKEN_ADDRESS as Address)
+  for (let id = next; now >= finalEnd(id) + GRACE_MS; id += 1) {
+    const previous = await checkpointBefore(env, anchor, id)
+    const { block, balance } = await snapshot(chain)
+    await refreshPayouts(env, chain)
+    const fees = feesBetween(BigInt(previous.balance), balance, await outflowBetween(env.DB, previous.block, block))
+    await env.DB.prepare('INSERT INTO finals (id, close_block, close_balance, fees, closed_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING')
+      .bind(id, block, balance.toString(), fees.toString(), now)
+      .run()
+  }
+}
+
+async function roundsPending(env: Env, final: number): Promise<boolean> {
+  const ids = finalRounds(final)
+  const row = await env.DB.prepare("SELECT 1 FROM rounds WHERE id BETWEEN ? AND ? AND status IN ('open', 'closed')")
+    .bind(ids[0], ids.at(-1))
+    .first()
+  return row !== null
+}
+
+async function finalistsOf(env: Env, final: number): Promise<Finalist[]> {
+  const ids = finalRounds(final)
+  const { results } = await env.DB.prepare(
+    "SELECT e.*, r.prompt FROM rounds r JOIN entries e ON e.id = r.winner_entry_id WHERE r.id BETWEEN ? AND ? AND r.status = 'judged' AND e.hidden = 0 ORDER BY r.id",
+  )
+    .bind(ids[0], ids.at(-1))
+    .all<Finalist>()
+  return results
+}
+
+export function carryFrom(previous: FinalRow | null): bigint {
+  return previous?.status === 'settled' && previous.winner_entry_id === null ? BigInt(previous.prize ?? '0') : 0n
+}
+
+async function decideFinal(env: Env, final: FinalRow, now: number): Promise<Verdict | null> {
+  const finalists = await finalistsOf(env, final.id)
+  if (finalists.length === 0) return { winner: null, disqualified: [], reason: 'No round had a winner this Final, so the prize rolls over.' }
+  if (finalists.length === 1) return { winner: finalists[0].id, disqualified: [], reason: 'Only one round had a winner, so it takes the Final.' }
+  try {
+    return await judgeFinal(env, finalists)
+  } catch (error) {
+    console.error(`judging final ${final.id} failed`, error)
+    if (now < finalEnd(final.id) + JUDGE_GIVE_UP_MS) return null
+    return { winner: null, disqualified: [], reason: 'The judge could not review this Final, so the prize rolls over.' }
+  }
+}
+
+async function settleFinals(env: Env, now: number): Promise<void> {
+  for (const final of await finalsWithStatus(env.DB, 'closed')) {
+    if (await roundsPending(env, final.id)) return
+    const verdict = await decideFinal(env, final, now)
+    if (!verdict) return
+    const carry = carryFrom(await getFinal(env.DB, final.id - 1))
+    const prize = BigInt(final.fees) + carry
+    await env.DB.prepare(
+      "UPDATE finals SET status = 'settled', winner_entry_id = ?, judge_note = ?, carry = ?, prize = ?, pay_status = ?, settled_at = ? WHERE id = ? AND status = 'closed'",
+    )
+      .bind(verdict.winner, verdict.reason, carry.toString(), prize.toString(), verdict.winner !== null && prize > 0n ? 'due' : null, now, final.id)
+      .run()
   }
 }
 
@@ -131,76 +177,49 @@ async function confirmPayouts(env: Env, chain: Chain, now: number): Promise<void
   }
 }
 
-async function pool(env: Env): Promise<bigint> {
-  return BigInt((await getMeta<string>(env.DB, 'pool')) ?? '0')
-}
-
-async function settleRounds(env: Env, now: number): Promise<void> {
-  for (const round of await roundsWithStatus(env.DB, 'judged')) {
-    const prize = BigInt(round.fees ?? '0') + (await pool(env))
-    const claimable = round.winner_entry_id !== null && prize >= BigInt(env.MIN_PAYOUT_WEI)
-    const updated = await env.DB.prepare(
-      "UPDATE rounds SET status = 'settled', prize = ?, claim_status = ?, claim_deadline = ?, settled_at = ? WHERE id = ? AND status = 'judged'",
-    )
-      .bind(prize.toString(), claimable ? 'open' : null, claimable ? now + CLAIM_MS : null, now, round.id)
-      .run()
-    if (updated.meta.changes === 1) await setMeta(env.DB, 'pool', claimable ? '0' : prize.toString())
-  }
-}
-
-async function expireClaims(env: Env, now: number): Promise<void> {
-  const { results } = await env.DB.prepare("SELECT * FROM rounds WHERE claim_status = 'open' AND claim_deadline < ? ORDER BY id").bind(now).all<RoundRow>()
-  for (const round of results) {
-    const updated = await env.DB.prepare("UPDATE rounds SET claim_status = 'expired' WHERE id = ? AND claim_status = 'open' AND claim_deadline < ?")
-      .bind(round.id, now)
-      .run()
-    if (updated.meta.changes === 1) await setMeta(env.DB, 'pool', ((await pool(env)) + BigInt(round.prize ?? '0')).toString())
-  }
-}
-
-async function payClaims(env: Env, chain: Chain, now: number): Promise<void> {
+async function payFinals(env: Env, chain: Chain, now: number): Promise<void> {
   const { results } = await env.DB.prepare(
-    "SELECT * FROM rounds WHERE claim_status = 'claimed' AND NOT EXISTS (SELECT 1 FROM payouts p WHERE p.round_id = rounds.id) ORDER BY id",
-  ).all<RoundRow>()
-  for (const round of results) {
+    "SELECT f.id, f.prize, e.wallet FROM finals f JOIN entries e ON e.id = f.winner_entry_id WHERE f.pay_status = 'due' ORDER BY f.id",
+  ).all<{ id: number; prize: string; wallet: string }>()
+  for (const final of results) {
     if ((await pendingPayouts(env.DB)).length > 0) return
-    if (!round.claim_wallet || !round.prize) throw new Error(`Round ${round.id} is claimed without a wallet or prize.`)
-    const signed = await signTransfer(chain, { to: round.claim_wallet, value: BigInt(round.prize) })
-    await env.DB.prepare('INSERT INTO payouts (round_id, recipient, amount, nonce, raw_tx, tx_hash, sent_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-      .bind(round.id, signed.to, signed.value.toString(), signed.nonce, signed.raw, signed.hash, now)
-      .run()
+    const signed = await signTransfer(chain, { to: final.wallet, value: BigInt(final.prize) })
+    if (!signed) {
+      await env.DB.prepare("UPDATE finals SET pay_status = 'unpaid' WHERE id = ? AND pay_status = 'due'").bind(final.id).run()
+      continue
+    }
+    await env.DB.batch([
+      env.DB.prepare('INSERT INTO payouts (final_id, recipient, amount, nonce, raw_tx, tx_hash, sent_at) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(
+        final.id,
+        signed.to,
+        signed.value.toString(),
+        signed.nonce,
+        signed.raw,
+        signed.hash,
+        now,
+      ),
+      env.DB.prepare("UPDATE finals SET pay_status = 'sent' WHERE id = ?").bind(final.id),
+    ])
     await broadcast(chain, signed.raw)
   }
-}
-
-async function updateLive(env: Env, chain: Chain, anchor: Anchor, current: number): Promise<void> {
-  const base =
-    (await env.DB.prepare('SELECT close_block AS block, close_balance AS balance FROM rounds WHERE id > ? AND close_block IS NOT NULL ORDER BY id DESC LIMIT 1')
-      .bind(anchor.round)
-      .first<Checkpoint>()) ?? anchor
-  const { block, balance } = await snapshot(chain)
-  const outflow = await confirmedOutflow(env.DB, base.block, block)
-  const live: Live = { round: current, fees: feesBetween(BigInt(base.balance), balance, outflow).toString() }
-  await setMeta(env.DB, 'live', live)
 }
 
 export async function tick(env: Env, now: number): Promise<void> {
   if (!(await acquireLock(env.DB, now, LOCK_MS))) return
   try {
     const current = currentRound(now)
+    await reviewSuggestions(env)
     await ensureRound(env.DB, current)
     await ensureRound(env.DB, current + 1)
-    await updatePrice(env)
     if (!isLive(env)) return
     const chain = connect(env)
     const anchor = await ensureAnchor(env, chain, current)
-    await closeRounds(env, chain, anchor, now)
+    await closeRounds(env, anchor, now)
     await judgeRounds(env, now)
-    await expireClaims(env, now)
-    await settleRounds(env, now)
+    await closeFinals(env, chain, anchor, now)
+    await settleFinals(env, now)
     await confirmPayouts(env, chain, now)
-    await payClaims(env, chain, now)
-    await updateLive(env, chain, anchor, current)
+    await payFinals(env, chain, now)
   } finally {
     await releaseLock(env.DB, now, LOCK_MS)
   }

@@ -1,6 +1,8 @@
-import { PROMPT_MAX, PROMPT_MIN, PROMPTS_PER_HOUR } from './constants'
+import { PROMPT_MAX, PROMPT_MIN } from '../../src/config'
+import { PROMPTS_PER_HOUR, SCREEN_BATCH } from './constants'
 import type { Env } from './env'
 import { HttpError, json, readJson, sourceOf } from './http'
+import { screenPrompts } from './judge'
 
 const HOUR_MS = 60 * 60 * 1000
 
@@ -21,4 +23,19 @@ export async function suggestPrompt(request: Request, env: Env, now: number): Pr
   if ((recent?.count ?? 0) >= PROMPTS_PER_HOUR) throw new HttpError(429, 'That is a lot of ideas. Try again in an hour.')
   const inserted = await env.DB.prepare('INSERT INTO prompts (text, source, created_at) VALUES (?, ?, ?)').bind(text, source, now).run()
   return json({ id: inserted.meta.last_row_id }, 201)
+}
+
+export async function reviewSuggestions(env: Env): Promise<void> {
+  const { results } = await env.DB.prepare("SELECT id, text FROM prompts WHERE status = 'pending' ORDER BY id LIMIT ?").bind(SCREEN_BATCH).all<{ id: number; text: string }>()
+  if (results.length === 0) return
+  try {
+    const approved = new Set(await screenPrompts(env, results))
+    await env.DB.batch(
+      results.map((prompt) =>
+        env.DB.prepare("UPDATE prompts SET status = ? WHERE id = ? AND status = 'pending'").bind(approved.has(prompt.id) ? 'approved' : 'rejected', prompt.id),
+      ),
+    )
+  } catch (error) {
+    console.error('screening prompts failed', error)
+  }
 }

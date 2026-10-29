@@ -16,6 +16,7 @@ import {
   type WalletClient,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
+import { EXPLORER_URL } from '../../src/config'
 import type { Env } from './env'
 import type { Transfer } from './money'
 
@@ -24,7 +25,7 @@ export const robinhood = defineChain({
   name: 'Robinhood Chain',
   nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
   rpcUrls: { default: { http: [] } },
-  blockExplorers: { default: { name: 'Blockscout', url: 'https://robinhoodchain.blockscout.com' } },
+  blockExplorers: { default: { name: 'Blockscout', url: EXPLORER_URL } },
 })
 
 const ERC20 = parseAbi(['function balanceOf(address owner) view returns (uint256)'])
@@ -48,10 +49,11 @@ export interface SignedTransfer extends Transfer {
 export interface Receipt {
   block: number
   success: boolean
+  gas: bigint
 }
 
 export function publicClient(env: Env): PublicClient {
-  return createPublicClient({ chain: robinhood, transport: http(env.RPC_URL) })
+  return createPublicClient({ chain: robinhood, transport: http(env.RPC_URL), pollingInterval: 1000 })
 }
 
 export function connect(env: Env): Chain {
@@ -76,12 +78,14 @@ export async function holds(env: Env, wallet: Address): Promise<boolean> {
   return balance >= BigInt(env.MIN_HOLD)
 }
 
-export async function signTransfer(chain: Chain, transfer: Transfer): Promise<SignedTransfer> {
+export async function signTransfer(chain: Chain, transfer: Transfer): Promise<SignedTransfer | null> {
   if (!isAddress(transfer.to)) throw new Error(`Invalid payout address ${transfer.to}.`)
   const nonce = await chain.client.getTransactionCount({ address: chain.wallet.account.address, blockTag: 'pending' })
-  const request = await chain.wallet.prepareTransactionRequest({ to: transfer.to, value: transfer.value, nonce })
-  const raw = await chain.wallet.signTransaction(request)
-  return { ...transfer, nonce, raw, hash: keccak256(raw) }
+  const request = await chain.wallet.prepareTransactionRequest({ to: transfer.to, value: 0n, nonce, type: 'eip1559' })
+  const value = transfer.value - request.gas * request.maxFeePerGas
+  if (value <= 0n) return null
+  const raw = await chain.wallet.signTransaction({ ...request, value })
+  return { to: transfer.to, value, nonce, raw, hash: keccak256(raw) }
 }
 
 export async function broadcast(chain: Chain, raw: Hex): Promise<void> {
@@ -95,7 +99,7 @@ export async function broadcast(chain: Chain, raw: Hex): Promise<void> {
 export async function receipt(chain: Chain, hash: Hex): Promise<Receipt | null> {
   try {
     const result = await chain.client.getTransactionReceipt({ hash })
-    return { block: Number(result.blockNumber), success: result.status === 'success' }
+    return { block: Number(result.blockNumber), success: result.status === 'success', gas: result.gasUsed * result.effectiveGasPrice }
   } catch (error) {
     if (error instanceof TransactionReceiptNotFoundError) return null
     throw error

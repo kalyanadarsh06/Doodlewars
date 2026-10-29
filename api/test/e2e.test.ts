@@ -1,12 +1,13 @@
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process'
+import { createHash, randomBytes } from 'node:crypto'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { privateKeyToAccount } from 'viem/accounts'
 import { afterAll, beforeAll, expect, it } from 'vitest'
-import { ROUND_MS } from '../../src/config'
-import { currentRound } from '../../src/game/round'
+import { FINAL_ROUNDS, ROUND_MS } from '../../src/config'
+import { currentRound, finalEnd, finalOf } from '../../src/game/round'
 import { GRACE_MS } from '../src/constants'
 import { startFake, type Fake } from './fake'
 import { whitePng } from './png'
@@ -15,6 +16,10 @@ const PORT = 8797
 const FAKE_PORT = 8798
 const API = `http://localhost:${PORT}`
 const ETH = 10n ** 18n
+const TRADE_FEES = 10n * ETH
+const EARNED = 7n * ETH
+const GAS_COST = 21_000n * 1_000_000_000n
+const CARRY = 10n ** 15n
 const TOKEN = '0x1000000000000000000000000000000000000001'
 const ADMIN = 'test-admin-token'
 const payout = privateKeyToAccount('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80')
@@ -25,6 +30,7 @@ const carol = privateKeyToAccount('0x7c852118294e51e653712a81e05800f419141751be5
 let fake: Fake
 let worker: ChildProcess
 let state: string
+let database: string
 
 const end = (round: number): number => (round + 1) * ROUND_MS
 
@@ -41,32 +47,66 @@ async function tick(time: number): Promise<void> {
   expect(await response.text()).toBe('ok')
 }
 
-async function enter(ip: string, round: number, name: string, title: string, png: Uint8Array): Promise<{ status: number; code?: string }> {
-  const form = new FormData()
-  form.set('round', String(round))
-  form.set('name', name)
-  form.set('title', title)
-  form.set('image', new Blob([png], { type: 'image/png' }), 'drawing.png')
-  const response = await fetch(`${API}/api/entries`, { method: 'POST', body: form, headers: { 'cf-connecting-ip': ip } })
-  const body = (await response.json()) as { code?: string }
-  return { status: response.status, code: body.code }
+interface Upload {
+  ip: string
+  round: number
+  name: string
+  title: string
+  png: Uint8Array
+  wallet?: string
+  token?: string
 }
+
+async function upload(method: string, entry: Upload): Promise<{ status: number; token?: string; wallet?: string; entered?: boolean }> {
+  const form = new FormData()
+  form.set('round', String(entry.round))
+  form.set('title', entry.title)
+  form.set('image', new Blob([entry.png], { type: 'image/png' }), 'drawing.png')
+  if (entry.wallet !== undefined) form.set('wallet', entry.wallet)
+  if (entry.token !== undefined) form.set('token', entry.token)
+  const response = await fetch(`${API}/api/entries`, { method, body: form, headers: { 'cf-connecting-ip': entry.ip } })
+  const body = (await response.json()) as { token?: string; wallet?: string; entered?: boolean }
+  return { status: response.status, token: body.token, wallet: body.wallet, entered: body.entered }
+}
+
+const enter = (entry: Upload) => upload('POST', entry)
+const update = (entry: Upload) => upload('PUT', entry)
 
 async function postJson(path: string, body: unknown): Promise<{ status: number; body: any }> {
   const response = await fetch(`${API}${path}`, { method: 'POST', body: JSON.stringify(body) })
   return { status: response.status, body: await response.json() }
 }
 
-function query(sql: string): Record<string, unknown>[] {
-  const output = execFileSync('npx', ['wrangler', 'd1', 'execute', 'doodlewars', '--local', '--persist-to', state, '--json', '--command', sql], {
-    encoding: 'utf8',
-  })
-  return JSON.parse(output)[0].results
+function wrangler(args: string[]): string {
+  return execFileSync('npx', ['wrangler', ...args, '--local', '--persist-to', state], { encoding: 'utf8', env: { ...process.env, CI: 'true' } })
+}
+
+async function explorer(path: string, init: RequestInit): Promise<any> {
+  const response = await fetch(`${API}/cdn-cgi/local/explorer/api${path}`, init)
+  const body = (await response.json()) as { success: boolean; errors: unknown[]; result: any }
+  if (!body.success) throw new Error(JSON.stringify(body.errors))
+  return body.result
+}
+
+async function query(sql: string): Promise<Record<string, unknown>[]> {
+  const [{ results }] = await explorer(`/d1/database/${database}/raw`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sql }) })
+  return results.rows.map((row: unknown[]) => Object.fromEntries(results.columns.map((column: string, index: number) => [column, row[index]])))
 }
 
 async function getJson(path: string, headers: Record<string, string> = {}): Promise<{ status: number; body: any }> {
   const response = await fetch(`${API}${path}`, { headers })
   return { status: response.status, body: await response.json() }
+}
+
+async function addFinalist(round: number, name: string, wallet: string): Promise<void> {
+  const png = whitePng(1200, 900, 42)
+  const key = `entries/${round}/${createHash('sha256').update(png).digest('hex')}.png`
+  await explorer(`/r2/buckets/doodlewars-images/objects/${encodeURIComponent(key)}`, { method: 'PUT', headers: { 'content-type': 'image/png' }, body: png })
+  await query(`INSERT OR REPLACE INTO rounds (id, prompt, status) VALUES (${round}, 'a cat DJ', 'judged')`)
+  await query(
+    `INSERT INTO entries (round_id, title, wallet, entered, image_key, token_hash, source, created_at) VALUES (${round}, 'Cat DJ ${name}', '${wallet}', 1, '${key}', '${randomBytes(32).toString('hex')}', 'test', 0)`,
+  )
+  await query(`UPDATE rounds SET winner_entry_id = (SELECT id FROM entries WHERE round_id = ${round}) WHERE id = ${round}`)
 }
 
 beforeAll(async () => {
@@ -75,15 +115,12 @@ beforeAll(async () => {
   fake.setBalance(payout.address, ETH / 20n)
   fake.hold(alice.address)
   fake.hold(bob.address)
+  fake.launch(TOKEN, payout.address)
   execFileSync('npm', ['--prefix', '..', 'run', 'build'], { stdio: 'ignore' })
-  execFileSync('npx', ['wrangler', 'd1', 'migrations', 'apply', 'doodlewars', '--local', '--persist-to', state], {
-    stdio: 'ignore',
-    env: { ...process.env, CI: 'true' },
-  })
+  wrangler(['d1', 'migrations', 'apply', 'doodlewars'])
   const vars = {
     RPC_URL: fake.url,
     TOKEN_ADDRESS: TOKEN,
-    PRICE_URL: `${fake.url}/price`,
     PAYOUT_PRIVATE_KEY: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
     ANTHROPIC_API_KEY: 'test-key',
     ANTHROPIC_BASE_URL: fake.url,
@@ -96,6 +133,7 @@ beforeAll(async () => {
     { stdio: 'ignore', env: { ...process.env, CI: 'true' } },
   )
   await waitFor(async () => (await fetch(`${API}/api/rounds`)).ok, 60_000)
+  database = (await explorer('/d1/database', {}))[0].uuid
 }, 120_000)
 
 afterAll(async () => {
@@ -104,33 +142,46 @@ afterAll(async () => {
   rmSync(state, { recursive: true, force: true })
 })
 
-it('runs a full round: entries, judging, claims, payouts and history', async () => {
+it('runs rounds into a Final: wallet entries, judging, rollover, payout and history', async () => {
   if (end(currentRound(Date.now())) - Date.now() < 40_000) await sleep(end(currentRound(Date.now())) - Date.now() + 1000)
   const round = currentRound(Date.now())
+  const final = finalOf(round)
 
   await tick(Date.now())
-  fake.addBalance(payout.address, ETH)
+  fake.accrue(TRADE_FEES)
   await tick(Date.now())
+  expect(fake.sweeps).toBe(0)
   const current = await getJson('/api/rounds/current')
-  expect(current.body).toMatchObject({ round, open: true, entries: 0, prize: { wei: ETH.toString(), usd: 3000 } })
+  expect(current.body).toMatchObject({ round, open: true, entries: 0, final: { final, endsAt: finalEnd(final) } })
+  expect(JSON.stringify(current.body)).not.toMatch(/pot|prize|fees|carry/)
 
   const alicePng = whitePng(1200, 900, 1)
-  const first = await enter('10.0.0.1', round, 'alice', 'Cool Whale', alicePng)
-  expect(first.status).toBe(201)
-  expect(first.code).toMatch(/^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/)
-  expect((await enter('10.0.0.1', round, 'alice', 'Second Try', whitePng(1200, 900, 2))).status).toBe(409)
-  expect((await enter('10.0.0.2', round, 'bob', 'Copycat', alicePng)).status).toBe(409)
-  expect((await enter('10.0.0.2', round, 'bob', 'Tiny', whitePng(600, 450, 3))).status).toBe(400)
-  expect((await enter('10.0.0.2', round, '', 'No Name', whitePng(1200, 900, 4))).status).toBe(400)
-  expect((await enter('10.0.0.2', round + 1, 'bob', 'Too Early', whitePng(1200, 900, 5))).status).toBe(409)
-  const second = await enter('10.0.0.2', round, 'bob', 'Shady Whale', whitePng(1200, 900, 6))
+  const first = await enter({ ip: '10.0.0.1', round, name: 'alice', title: 'Cool Whale', png: alicePng, wallet: alice.address.toLowerCase() })
+  expect(first).toMatchObject({ status: 201, wallet: alice.address, entered: true })
+  expect(first.token).toMatch(/^[0-9a-f]{48}$/)
+  expect((await enter({ ip: '10.0.0.1', round, name: 'alice', title: 'Again', png: whitePng(1200, 900, 2), wallet: bob.address })).status).toBe(409)
+  expect((await enter({ ip: '10.0.0.3', round, name: 'alice', title: 'Same wallet', png: whitePng(1200, 900, 3), wallet: alice.address })).status).toBe(409)
+  expect((await enter({ ip: '10.0.0.2', round, name: 'bob', title: 'Copycat', png: alicePng, wallet: bob.address })).status).toBe(409)
+  expect((await enter({ ip: '10.0.0.2', round, name: 'bob', title: 'Tiny', png: whitePng(600, 450, 4), wallet: bob.address })).status).toBe(400)
+  expect((await enter({ ip: '10.0.0.2', round, name: 'bob', title: 'Bad Wallet', png: whitePng(1200, 900, 5), wallet: '0x1234' })).status).toBe(400)
+  expect((await enter({ ip: '10.0.0.4', round, name: 'carol', title: 'Not Holding', png: whitePng(1200, 900, 5), wallet: carol.address })).status).toBe(403)
+  expect(await enter({ ip: '10.0.0.4', round, name: 'carol', title: 'Just Doodling', png: whitePng(1200, 900, 9), wallet: '' })).toMatchObject({ status: 201, entered: false })
+  expect((await enter({ ip: '10.0.0.2', round: round + 1, name: 'bob', title: 'Too Early', png: whitePng(1200, 900, 5), wallet: bob.address })).status).toBe(409)
+  const aliceFinal = whitePng(1200, 900, 7)
+  expect((await update({ ip: '10.0.0.9', round, name: 'alice', title: '', png: aliceFinal, token: 'f'.repeat(48) })).status).toBe(404)
+  expect((await update({ ip: '10.0.0.9', round, name: 'alice', title: '', png: aliceFinal, token: 'not-a-key' })).status).toBe(400)
+  expect((await update({ ip: '10.0.0.9', round, name: 'alice', title: '', png: aliceFinal, token: first.token })).status).toBe(200)
+  expect(await query(`SELECT title, wallet, entered FROM entries WHERE round_id = ${round} ORDER BY id`)).toEqual([
+    { title: '', wallet: alice.address, entered: 1 },
+    { title: 'Just Doodling', wallet: null, entered: 0 },
+  ])
+  const second = await enter({ ip: '10.0.0.2', round, name: 'bob', title: 'Shady Whale', png: whitePng(1200, 900, 6), wallet: bob.address })
   expect(second.status).toBe(201)
-  expect((await getJson('/api/rounds/current')).body.entries).toBe(2)
-  expect((await postJson('/api/codes', { code: first.code })).body).toMatchObject({ round, status: 'judging', prize: null })
+  expect((await getJson('/api/rounds/current')).body.entries).toBe(3)
 
-  const liveImage = query(`SELECT image_key FROM entries WHERE round_id = ${round} ORDER BY id LIMIT 1`)[0].image_key
+  const liveImage = (await query(`SELECT image_key FROM entries WHERE round_id = ${round} ORDER BY id LIMIT 1`))[0].image_key
   expect((await fetch(`${API}/api/images/${liveImage}`)).status).toBe(404)
-  expect(query(`SELECT code_hash FROM entries WHERE round_id = ${round}`).every((row) => row.code_hash !== first.code)).toBe(true)
+  expect((await query(`SELECT token_hash FROM entries WHERE round_id = ${round}`)).every((row) => row.token_hash !== first.token)).toBe(true)
 
   const suggestion = await postJson('/api/prompts', { text: ' a snail  in a top hat ' })
   expect(suggestion.status).toBe(201)
@@ -144,66 +195,97 @@ it('runs a full round: entries, judging, claims, payouts and history', async () 
   })
   expect(approve.status).toBe(200)
 
-  await tick(end(round) + GRACE_MS + 1000)
-  expect(fake.judgeCalls).toHaveLength(1)
-  const [call] = fake.judgeCalls
-  expect(call.body.model).toBe('claude-opus-5-5')
-  expect(call.body.fallbacks).toBe('default')
-  expect(call.beta).toContain('server-side-fallback-2026-07-01')
-  expect(call.body.messages[0].content.filter((block) => block.type === 'image')).toHaveLength(2)
-  expect(call.body.messages[0].content.some((block) => block.text?.includes('by "alice"'))).toBe(true)
-
-  expect((await postJson('/api/codes', { code: second.code })).body).toMatchObject({ status: 'lost', prize: null })
-  const won = await postJson('/api/codes', { code: first.code?.toLowerCase() })
-  expect(won.body).toMatchObject({ status: 'open', prize: { wei: ETH.toString(), usd: 3000 } })
-  expect(won.body.deadline).toBeGreaterThan(end(round))
-
-  expect((await postJson('/api/claims', { code: second.code, wallet: bob.address })).status).toBe(409)
-  expect((await postJson('/api/claims', { code: first.code, wallet: carol.address })).status).toBe(403)
-  expect((await postJson('/api/claims', { code: first.code, wallet: 'not-a-wallet' })).status).toBe(400)
-  expect((await postJson('/api/claims', { code: 'AAAA-BBBB-CCCC', wallet: alice.address })).status).toBe(404)
-  const claimed = await postJson('/api/claims', { code: first.code, wallet: alice.address.toLowerCase() })
-  expect(claimed).toMatchObject({ status: 200, body: { status: 'claimed', wallet: alice.address } })
-  expect((await postJson('/api/claims', { code: first.code, wallet: bob.address })).status).toBe(409)
-
-  const aliceBefore = fake.balance(alice.address)
-  await tick(end(round) + GRACE_MS + 62_000)
-  expect(fake.balance(alice.address) - aliceBefore).toBe(ETH)
-  await tick(end(round) + GRACE_MS + 124_000)
-  expect(query('SELECT status, amount FROM payouts')).toEqual([{ status: 'confirmed', amount: ETH.toString() }])
-  expect((await postJson('/api/codes', { code: first.code })).body).toMatchObject({ status: 'claimed', wallet: alice.address })
-
-  query(
-    `INSERT INTO rounds (id, prompt, status, prize, winner_entry_id, claim_status, claim_deadline) VALUES (${round - 10}, 'old', 'settled', '7', 1, 'open', 1)`,
+  const bobEntry = (await query(`SELECT id FROM entries WHERE round_id = ${round} AND title = 'Shady Whale'`))[0].id
+  await query(
+    `INSERT INTO finals (id, status, close_block, close_balance, fees, prize, winner_entry_id, pay_status, closed_at) VALUES (${final - 5}, 'settled', 0, '0', '7', '7', ${bobEntry}, 'due', 0)`,
   )
-  await tick(end(round + 1) + GRACE_MS + 1000)
-  expect(query(`SELECT claim_status FROM rounds WHERE id = ${round - 10}`)).toEqual([{ claim_status: 'expired' }])
-  const rows = query(`SELECT id, status, fees, prize, claim_status, judge_note FROM rounds WHERE id IN (${round}, ${round + 1}) ORDER BY id`)
-  expect(rows).toEqual([
-    expect.objectContaining({ id: round, status: 'settled', fees: ETH.toString(), prize: ETH.toString(), claim_status: 'claimed' }),
-    expect.objectContaining({ id: round + 1, status: 'settled', fees: '0', prize: '7', claim_status: null, judge_note: 'Nobody drew this one.' }),
+  await query(`INSERT INTO finals (id, status, close_block, close_balance, fees, prize, closed_at) VALUES (${final - 1}, 'settled', 0, '0', '${CARRY}', '${CARRY}', 0)`)
+  const extra = round % FINAL_ROUNDS === 0 ? round + 1 : round - 1
+  if (extra < round) await addFinalist(extra, 'dave', alice.address)
+  const aliceBefore = fake.balance(alice.address)
+
+  await tick(end(round) + GRACE_MS + 1000)
+  expect(fake.judgeCalls.length).toBeGreaterThanOrEqual(1)
+  expect((await update({ ip: '10.0.0.1', round, name: 'alice', title: 'Too Late', png: whitePng(1200, 900, 8), token: first.token })).status).toBe(409)
+  const [call] = fake.judgeCalls
+  expect(call.body.model).toBe('claude-haiku-5-5')
+  expect(call.body.fallbacks).toBeUndefined()
+  expect(call.body.messages[0].content.filter((block) => block.type === 'image')).toHaveLength(3)
+  expect(call.body.messages[0].content.filter((block) => block.text?.includes(', just for fun'))).toHaveLength(1)
+  expect(call.body.messages[0].content.some((block) => block.text?.includes('"Shady Whale"'))).toBe(true)
+  expect(await query(`SELECT pay_status FROM finals WHERE id = ${final - 5}`)).toEqual([{ pay_status: 'unpaid' }])
+  if (extra > round) await addFinalist(extra, 'dave', alice.address)
+
+  await tick(finalEnd(final) + GRACE_MS + 1000)
+  expect(fake.judgeCalls).toHaveLength(2)
+  const finalCall = fake.judgeCalls[1]
+  expect(finalCall.body.messages[0].content.filter((block) => block.type === 'image')).toHaveLength(2)
+  expect(finalCall.body.messages[0].content.some((block) => block.text?.includes('drawn for the prompt "a cat DJ"'))).toBe(true)
+  const champion = extra < round ? 'dave' : 'alice'
+  expect(fake.sweeps).toBe(1)
+  const fees = EARNED - 2n * GAS_COST
+  const prize = fees + CARRY
+  const sent = prize - 21_000n * 1_200_000_000n
+  expect(fake.balance(alice.address) - aliceBefore).toBe(sent)
+  expect(await query(`SELECT status, fees, carry, prize, pay_status FROM finals WHERE id = ${final}`)).toEqual([
+    { status: 'settled', fees: fees.toString(), carry: CARRY.toString(), prize: prize.toString(), pay_status: 'sent' },
   ])
-  expect(query("SELECT value FROM meta WHERE key = 'pool'")).toEqual([{ value: '"7"' }])
-  expect(query(`SELECT prompt FROM rounds WHERE id = ${round + 2}`)).toEqual([{ prompt: 'a snail in a top hat' }])
+  const missed = await query(`SELECT status, judge_note FROM rounds WHERE id = ${final * FINAL_ROUNDS + FINAL_ROUNDS - 1}`)
+  if (round % FINAL_ROUNDS < FINAL_ROUNDS - 1) expect(missed).toEqual([{ status: 'judged', judge_note: 'Nobody drew this one.' }])
+
+  await tick(finalEnd(final) + GRACE_MS + 62_000)
+  expect(await query(`SELECT final_id, recipient, status, amount, gas FROM payouts`)).toEqual([
+    { final_id: final, recipient: alice.address, status: 'confirmed', amount: sent.toString(), gas: GAS_COST.toString() },
+  ])
+  expect(await query(`SELECT prompt FROM rounds WHERE id = ${round + 2}`)).toEqual([{ prompt: 'a snail in a top hat' }])
 
   await sleep(Math.max(0, end(round) - Date.now() + 1000))
+  const detail = await getJson(`/api/finals/${final}`)
+  expect(detail.body).toMatchObject({
+    final,
+    note: 'Best whale by a mile.',
+    champion: { wallet: alice.address, round: extra < round ? extra : round },
+    payout: { status: 'paid' },
+  })
+  expect(detail.body.rounds).toHaveLength(FINAL_ROUNDS)
+  expect(JSON.stringify(detail.body)).not.toMatch(/pot|prize|fees|carry|amount/)
+  expect(detail.body.rounds.find((item: { round: number }) => item.round === round)).toMatchObject({ status: 'done', entries: 3, winner: { title: '' } })
+  const list = await getJson(`/api/finals?before=${final + 1}&limit=1`)
+  expect(list.body.finals).toEqual([expect.objectContaining({ final, champion: expect.objectContaining({ round: extra < round ? extra : round }) })])
+  const champions = await getJson('/api/champions')
+  expect(champions.body.champions).toEqual([
+    expect.objectContaining({ final, round: extra < round ? extra : round, prompt: 'a cat DJ', payout: { status: 'paid', tx: expect.stringMatching(/^0x/) } }),
+  ])
+  expect(JSON.stringify(champions.body)).not.toMatch(/pot|prize|fees|carry|amount|wallet/)
+
   const past = await getJson(`/api/rounds/${round}`)
   expect(past.body).toMatchObject({
     round,
-    status: 'settled',
-    entries: 2,
-    prize: { wei: ETH.toString(), usd: 3000 },
-    winner: { title: 'Cool Whale', name: 'alice' },
-    claim: { status: 'claimed', wallet: alice.address },
-    payout: { status: 'confirmed' },
+    status: 'done',
+    entries: 3,
+    winner: { title: '', entered: true },
     note: 'Best whale by a mile.',
+    final: { final, settled: true, champion: champion === 'alice' },
   })
-  expect(past.body.drawings.map((drawing: { name: string }) => drawing.name)).toEqual(['alice', 'bob'])
-  expect(JSON.stringify(past.body)).not.toContain('code')
+  expect(past.body.drawings.map((drawing: { title: string; entered: boolean }) => [drawing.title, drawing.entered])).toEqual([
+    ['', true],
+    ['Just Doodling', false],
+    ['Shady Whale', true],
+  ])
+  expect(JSON.stringify(past.body)).not.toMatch(/token|wallet|0x/)
   const image = await fetch(`${API}${past.body.winner.image}`)
   expect(image.status).toBe(200)
   expect(image.headers.get('content-type')).toBe('image/png')
-  expect(new Uint8Array(await image.arrayBuffer())).toEqual(alicePng)
-  const list = await getJson(`/api/rounds?before=${round + 1}`)
-  expect(list.body.rounds[0]).toMatchObject({ round, winner: { name: 'alice' } })
+  expect(new Uint8Array(await image.arrayBuffer())).toEqual(aliceFinal)
+  const rounds = await getJson(`/api/rounds?before=${round + 1}`)
+  expect(rounds.body.rounds[0]).toMatchObject({ round, winner: { title: '' } })
+
+  const fun = await postJson('/api/prompts', { text: 'a penguin on rollerskates' })
+  const spam = await postJson('/api/prompts', { text: 'buy my coin at example dot com' })
+  await tick(Date.now())
+  expect(fake.screenCalls).toHaveLength(1)
+  expect(await query(`SELECT id, status FROM prompts WHERE id IN (${fun.body.id}, ${spam.body.id}) ORDER BY id`)).toEqual([
+    { id: fun.body.id, status: 'approved' },
+    { id: spam.body.id, status: 'rejected' },
+  ])
 }, 420_000)

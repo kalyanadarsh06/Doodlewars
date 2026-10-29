@@ -3,9 +3,7 @@ export interface Env {
   IMAGES: R2Bucket
   TOKEN_ADDRESS: string
   MIN_HOLD: string
-  MIN_PAYOUT_WEI: string
   JUDGE_MODEL: string
-  PRICE_URL: string
   RPC_URL: string
   PAYOUT_PRIVATE_KEY?: string
   ANTHROPIC_API_KEY?: string
