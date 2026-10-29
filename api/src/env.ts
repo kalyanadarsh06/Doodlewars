@@ -1,7 +1,10 @@
+import { isAddress } from 'viem'
+
 export interface Env {
   DB: D1Database
   IMAGES: R2Bucket
   TOKEN_ADDRESS: string
+  OWNER_WALLET: string
   MIN_HOLD: string
   JUDGE_MODEL: string
   RPC_URL: string
@@ -13,5 +16,5 @@ export interface Env {
 }
 
 export function isLive(env: Env): boolean {
-  return env.TOKEN_ADDRESS !== '' && Boolean(env.PAYOUT_PRIVATE_KEY)
+  return env.TOKEN_ADDRESS !== '' && isAddress(env.OWNER_WALLET) && Boolean(env.PAYOUT_PRIVATE_KEY)
 }

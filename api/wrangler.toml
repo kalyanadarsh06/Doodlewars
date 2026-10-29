@@ -25,5 +25,6 @@ crons = ["* * * * *"]
 
 [vars]
 TOKEN_ADDRESS = ""
+OWNER_WALLET = "0xd7F272e27BDFE358eA77ce18Bd3c39a8282e531a"
 MIN_HOLD = "1"
 JUDGE_MODEL = "claude-haiku-5-5"

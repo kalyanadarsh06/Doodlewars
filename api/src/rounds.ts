@@ -19,12 +19,13 @@ import {
   type Anchor,
   type Checkpoint,
   type FinalRow,
+  type PayoutKind,
   type RoundRow,
 } from './db'
 import { isLive, type Env } from './env'
 import { judgeFinal, judgeRound, type Finalist, type Verdict } from './judge'
-import { feesBetween } from './money'
-import { collectFees } from './pons'
+import { feesBetween, houseCut } from './money'
+import { collectFees, feeSplit } from './pons'
 import { reviewSuggestions } from './prompts'
 
 export function roundEnd(id: number): number {
@@ -107,13 +108,17 @@ async function closeFinals(env: Env, chain: Chain, anchor: Anchor, now: number):
   const next = Math.max((last?.id ?? 0) + 1, firstFinal(anchor))
   if (now < finalEnd(next) + GRACE_MS) return
   await collectFees(chain, env.TOKEN_ADDRESS as Address)
+  const split = await feeSplit(chain, env.TOKEN_ADDRESS as Address)
   for (let id = next; now >= finalEnd(id) + GRACE_MS; id += 1) {
     const previous = await checkpointBefore(env, anchor, id)
     const { block, balance } = await snapshot(chain)
     await refreshPayouts(env, chain)
-    const fees = feesBetween(BigInt(previous.balance), balance, await outflowBetween(env.DB, previous.block, block))
-    await env.DB.prepare('INSERT INTO finals (id, close_block, close_balance, fees, closed_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING')
-      .bind(id, block, balance.toString(), fees.toString(), now)
+    const earned = feesBetween(BigInt(previous.balance), balance, await outflowBetween(env.DB, previous.block, block))
+    const house = houseCut(earned, split)
+    await env.DB.prepare(
+      'INSERT INTO finals (id, close_block, close_balance, fees, house, house_status, closed_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING',
+    )
+      .bind(id, block, balance.toString(), (earned - house).toString(), house.toString(), house > 0n ? 'due' : null, now)
       .run()
   }
 }
@@ -177,20 +182,28 @@ async function confirmPayouts(env: Env, chain: Chain, now: number): Promise<void
   }
 }
 
+const STATUS_COLUMN: Record<PayoutKind, string> = { prize: 'pay_status', house: 'house_status' }
+
+const DUE_SELECT = `SELECT f.id, 'prize' AS kind, f.prize AS value, e.wallet AS recipient
+FROM finals f JOIN entries e ON e.id = f.winner_entry_id WHERE f.pay_status = 'due'
+UNION ALL
+SELECT id, 'house' AS kind, house AS value, ? AS recipient FROM finals WHERE house_status = 'due'
+ORDER BY id, kind DESC`
+
 async function payFinals(env: Env, chain: Chain, now: number): Promise<void> {
-  const { results } = await env.DB.prepare(
-    "SELECT f.id, f.prize, e.wallet FROM finals f JOIN entries e ON e.id = f.winner_entry_id WHERE f.pay_status = 'due' ORDER BY f.id",
-  ).all<{ id: number; prize: string; wallet: string }>()
-  for (const final of results) {
+  const { results } = await env.DB.prepare(DUE_SELECT).bind(env.OWNER_WALLET).all<{ id: number; kind: PayoutKind; value: string; recipient: string }>()
+  for (const due of results) {
     if ((await pendingPayouts(env.DB)).length > 0) return
-    const signed = await signTransfer(chain, { to: final.wallet, value: BigInt(final.prize) })
+    const column = STATUS_COLUMN[due.kind]
+    const signed = await signTransfer(chain, { to: due.recipient, value: BigInt(due.value) })
     if (!signed) {
-      await env.DB.prepare("UPDATE finals SET pay_status = 'unpaid' WHERE id = ? AND pay_status = 'due'").bind(final.id).run()
+      await env.DB.prepare(`UPDATE finals SET ${column} = 'unpaid' WHERE id = ? AND ${column} = 'due'`).bind(due.id).run()
       continue
     }
     await env.DB.batch([
-      env.DB.prepare('INSERT INTO payouts (final_id, recipient, amount, nonce, raw_tx, tx_hash, sent_at) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(
-        final.id,
+      env.DB.prepare('INSERT INTO payouts (final_id, kind, recipient, amount, nonce, raw_tx, tx_hash, sent_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(
+        due.id,
+        due.kind,
         signed.to,
         signed.value.toString(),
         signed.nonce,
@@ -198,7 +211,7 @@ async function payFinals(env: Env, chain: Chain, now: number): Promise<void> {
         signed.hash,
         now,
       ),
-      env.DB.prepare("UPDATE finals SET pay_status = 'sent' WHERE id = ?").bind(final.id),
+      env.DB.prepare(`UPDATE finals SET ${column} = 'sent' WHERE id = ?`).bind(due.id),
     ])
     await broadcast(chain, signed.raw)
   }

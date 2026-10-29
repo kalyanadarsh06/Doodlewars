@@ -17,7 +17,9 @@ const FAKE_PORT = 8798
 const API = `http://localhost:${PORT}`
 const ETH = 10n ** 18n
 const TRADE_FEES = 10n * ETH
-const EARNED = 7n * ETH
+const TAX_BPS = 70n
+const EARNED = 14n * ETH
+const OWNER = '0xd7F272e27BDFE358eA77ce18Bd3c39a8282e531a'
 const GAS_COST = 21_000n * 1_000_000_000n
 const CARRY = 10n ** 15n
 const TOKEN = '0x1000000000000000000000000000000000000001'
@@ -115,7 +117,7 @@ beforeAll(async () => {
   fake.setBalance(payout.address, ETH / 20n)
   fake.hold(alice.address)
   fake.hold(bob.address)
-  fake.launch(TOKEN, payout.address)
+  fake.launch(TOKEN, payout.address, TAX_BPS)
   execFileSync('npm', ['--prefix', '..', 'run', 'build'], { stdio: 'ignore' })
   wrangler(['d1', 'migrations', 'apply', 'doodlewars'])
   const vars = {
@@ -223,19 +225,35 @@ it('runs rounds into a Final: wallet entries, judging, rollover, payout and hist
   expect(finalCall.body.messages[0].content.some((block) => block.text?.includes('drawn for the prompt "a cat DJ"'))).toBe(true)
   const champion = extra < round ? 'dave' : 'alice'
   expect(fake.sweeps).toBe(1)
-  const fees = EARNED - 2n * GAS_COST
+  const earned = EARNED - 2n * GAS_COST
+  const house = earned / 2n
+  const fees = earned - house
   const prize = fees + CARRY
   const sent = prize - 21_000n * 1_200_000_000n
+  const houseSent = house - 21_000n * 1_200_000_000n
   expect(fake.balance(alice.address) - aliceBefore).toBe(sent)
-  expect(await query(`SELECT status, fees, carry, prize, pay_status FROM finals WHERE id = ${final}`)).toEqual([
-    { status: 'settled', fees: fees.toString(), carry: CARRY.toString(), prize: prize.toString(), pay_status: 'sent' },
+  expect(fake.balance(OWNER)).toBe(0n)
+  expect(await query(`SELECT status, fees, house, house_status, carry, prize, pay_status FROM finals WHERE id = ${final}`)).toEqual([
+    {
+      status: 'settled',
+      fees: fees.toString(),
+      house: house.toString(),
+      house_status: 'due',
+      carry: CARRY.toString(),
+      prize: prize.toString(),
+      pay_status: 'sent',
+    },
   ])
   const missed = await query(`SELECT status, judge_note FROM rounds WHERE id = ${final * FINAL_ROUNDS + FINAL_ROUNDS - 1}`)
   if (round % FINAL_ROUNDS < FINAL_ROUNDS - 1) expect(missed).toEqual([{ status: 'judged', judge_note: 'Nobody drew this one.' }])
 
   await tick(finalEnd(final) + GRACE_MS + 62_000)
-  expect(await query(`SELECT final_id, recipient, status, amount, gas FROM payouts`)).toEqual([
-    { final_id: final, recipient: alice.address, status: 'confirmed', amount: sent.toString(), gas: GAS_COST.toString() },
+  await tick(finalEnd(final) + GRACE_MS + 124_000)
+  expect(fake.balance(OWNER)).toBe(houseSent)
+  expect(await query(`SELECT house_status FROM finals WHERE id = ${final}`)).toEqual([{ house_status: 'sent' }])
+  expect(await query(`SELECT final_id, kind, recipient, status, amount, gas FROM payouts ORDER BY id`)).toEqual([
+    { final_id: final, kind: 'prize', recipient: alice.address, status: 'confirmed', amount: sent.toString(), gas: GAS_COST.toString() },
+    { final_id: final, kind: 'house', recipient: OWNER, status: 'confirmed', amount: houseSent.toString(), gas: GAS_COST.toString() },
   ])
   expect(await query(`SELECT prompt FROM rounds WHERE id = ${round + 2}`)).toEqual([{ prompt: 'a snail in a top hat' }])
 

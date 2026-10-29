@@ -75,7 +75,7 @@ const FINAL_SELECT = `SELECT f.*,
   p.tx_hash AS payout_tx, p.status AS payout_status
 FROM finals f
 LEFT JOIN entries c ON c.id = f.winner_entry_id
-LEFT JOIN payouts p ON p.final_id = f.id`
+LEFT JOIN payouts p ON p.final_id = f.id AND p.kind = 'prize'`
 
 async function liveView(env: Env, round: RoundRow) {
   const anchor = await getMeta<Anchor>(env.DB, 'anchor')
@@ -227,7 +227,7 @@ export async function championsView(env: Env, url: URL): Promise<Response> {
     FROM finals f
     JOIN entries c ON c.id = f.winner_entry_id AND c.hidden = 0
     JOIN rounds r ON r.id = c.round_id
-    LEFT JOIN payouts p ON p.final_id = f.id
+    LEFT JOIN payouts p ON p.final_id = f.id AND p.kind = 'prize'
     WHERE f.status = 'settled' AND f.pay_status = 'sent' AND f.id < ?
     ORDER BY f.id DESC LIMIT ?`,
   )

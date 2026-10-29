@@ -7,6 +7,8 @@ export type FinalStatus = 'closed' | 'settled'
 
 export type PayStatus = 'due' | 'sent' | 'unpaid'
 
+export type PayoutKind = 'prize' | 'house'
+
 export interface RoundRow {
   id: number
   prompt: string
@@ -36,6 +38,8 @@ export interface FinalRow {
   close_block: number
   close_balance: string
   fees: string
+  house: string
+  house_status: PayStatus | null
   carry: string | null
   prize: string | null
   winner_entry_id: number | null
@@ -48,6 +52,7 @@ export interface FinalRow {
 export interface PayoutRow {
   id: number
   final_id: number
+  kind: PayoutKind
   recipient: string
   amount: string
   gas: string | null

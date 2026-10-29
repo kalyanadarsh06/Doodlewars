@@ -9,6 +9,7 @@ const ZERO_HASH = `0x${'0'.repeat(64)}`
 const CURVE = '0x000000000000000000000000000000000000c0de'
 const PROTOCOL_SHARE = 3000n
 const BPS = 10_000n
+const FEE_BPS = 100n
 
 const SELECTOR = {
   balanceOf: toFunctionSelector('balanceOf(address)'),
@@ -56,7 +57,7 @@ export interface Fake {
   addBalance(address: Address, wei: bigint): void
   balance(address: Address): bigint
   hold(address: Address): void
-  launch(token: Address, recipient: Address): void
+  launch(token: Address, recipient: Address, taxBps: bigint): void
   accrue(wei: bigint): void
   sweeps: number
   judgeCalls: JudgeCall[]
@@ -84,7 +85,7 @@ export async function startFake(port: number): Promise<Fake> {
   const judgeCalls: JudgeCall[] = []
   const screenCalls: ScreenCall[] = []
   const escrow = new Map<string, bigint>()
-  const pons = { token: '', recipient: '', fees: 0n, sweeps: 0 }
+  const pons = { token: '', recipient: '', taxBps: 0n, fees: 0n, tax: 0n, sweeps: 0 }
 
   const balanceAt = (address: string, at: number): bigint => {
     const entries = history.get(address.toLowerCase()) ?? []
@@ -125,8 +126,9 @@ export async function startFake(port: number): Promise<Fake> {
   const settle = (from: string, to: string, data: string): void => {
     if (same(to, CURVE) && data.startsWith(SELECTOR.sweepFees)) {
       if (!same(from, pons.recipient)) throw new Error('execution reverted')
-      escrow.set(from.toLowerCase(), (escrow.get(from.toLowerCase()) ?? 0n) + (pons.fees * (BPS - PROTOCOL_SHARE)) / BPS)
+      escrow.set(from.toLowerCase(), (escrow.get(from.toLowerCase()) ?? 0n) + (pons.fees * (BPS - PROTOCOL_SHARE)) / BPS + pons.tax)
       pons.fees = 0n
+      pons.tax = 0n
       pons.sweeps += 1
     }
     if (same(to, PONS.escrow) && data.startsWith(SELECTOR.claim)) {
@@ -139,12 +141,12 @@ export async function startFake(port: number): Promise<Fake> {
   const call = ({ from, to, data }: { from?: string; to: string; data: string }): Hex => {
     const argument = `0x${data.slice(34, 74)}`
     if (same(to, PONS.factory) && data.startsWith(SELECTOR.getLaunchedToken) && same(argument, pons.token)) {
-      return words(pons.token, CURVE, pons.recipient, pons.recipient, 0n, 0n, 0n, 200n, 0n, 0n, 0n, 0n, 0n, 0n, 1n)
+      return words(pons.token, CURVE, pons.recipient, pons.recipient, 0n, 0n, 0n, 200n, pons.taxBps, 0n, 0n, 0n, 0n, 0n, 1n)
     }
-    if (same(to, PONS.factory) && data.startsWith(SELECTOR.getLaunchFeePolicy)) return words(PONS.factory, PROTOCOL_SHARE, 5000n, 100n, 300n)
+    if (same(to, PONS.factory) && data.startsWith(SELECTOR.getLaunchFeePolicy)) return words(PONS.factory, PROTOCOL_SHARE, 5000n, FEE_BPS, 300n)
     if (same(to, CURVE) && data.startsWith(SELECTOR.graduated)) return words(0n)
     if (same(to, CURVE) && data.startsWith(SELECTOR.quoteFeeBalance)) return words(pons.fees)
-    if (same(to, CURVE) && data.startsWith(SELECTOR.creatorTaxBalance)) return words(0n)
+    if (same(to, CURVE) && data.startsWith(SELECTOR.creatorTaxBalance)) return words(pons.tax)
     if (same(to, CURVE) && data.startsWith(SELECTOR.sweepFees) && same(from, pons.recipient)) return '0x'
     if (same(to, PONS.escrow) && data.startsWith(SELECTOR.balanceOf)) return words(escrow.get(argument.toLowerCase()) ?? 0n)
     if (same(to, PONS.escrow) && data.startsWith(SELECTOR.claim) && (escrow.get(from?.toLowerCase() ?? '') ?? 0n) > 0n) return '0x'
@@ -267,9 +269,10 @@ export async function startFake(port: number): Promise<Fake> {
     addBalance,
     balance: (address) => balanceAt(address, block),
     hold: (address) => holders.add(address.toLowerCase()),
-    launch: (token, recipient) => Object.assign(pons, { token, recipient }),
+    launch: (token, recipient, taxBps) => Object.assign(pons, { token, recipient, taxBps }),
     accrue: (wei) => {
       pons.fees += wei
+      pons.tax += (wei * pons.taxBps) / FEE_BPS
     },
     get sweeps() {
       return pons.sweeps

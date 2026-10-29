@@ -5,7 +5,7 @@ import { GRACE_MS, TOKEN_BYTES } from '../src/constants'
 import type { FinalRow } from '../src/db'
 import { acceptsEntries, cleanTitle, cleanWallet, newToken, optionalWallet, pngSize, tokenHash } from '../src/entries'
 import { HttpError } from '../src/http'
-import { feesBetween } from '../src/money'
+import { feesBetween, houseCut } from '../src/money'
 import { cleanPrompt } from '../src/prompts'
 import { carryFrom } from '../src/rounds'
 import { whitePng } from './png'
@@ -19,6 +19,8 @@ function settled(fields: Partial<FinalRow>): FinalRow {
     close_block: 1,
     close_balance: '0',
     fees: '0',
+    house: '0',
+    house_status: null,
     carry: '0',
     prize: '0',
     winner_entry_id: null,
@@ -37,6 +39,13 @@ describe('money', () => {
 
   it('never reports negative fees', () => {
     expect(feesBetween(5n * ETH, 4n * ETH, 0n)).toBe(0n)
+  })
+
+  it('splits the creator tax off the fees in proportion to the rates', () => {
+    expect(houseCut(14n * ETH, { tax: 70n, creator: 70n })).toBe(7n * ETH)
+    expect(houseCut(10n * ETH, { tax: 30n, creator: 70n })).toBe(3n * ETH)
+    expect(houseCut(10n * ETH, { tax: 0n, creator: 70n })).toBe(0n)
+    expect(houseCut(10n * ETH, { tax: 0n, creator: 0n })).toBe(0n)
   })
 })
 

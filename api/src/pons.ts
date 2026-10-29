@@ -1,6 +1,7 @@
 import { encodeAbiParameters, isAddressEqual, keccak256, parseAbi, zeroAddress, type Abi, type Address, type Hex } from 'viem'
 import type { Chain } from './chain'
 import { RECEIPT_WAIT_MS } from './constants'
+import type { Split } from './money'
 
 export const PONS = {
   factory: '0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e',
@@ -8,9 +9,11 @@ export const PONS = {
   escrow: '0xd3AFEB2a57f70eF218Aa82451c51B2fb0416Ac9e',
 } as const
 
+const BPS = 10_000n
 
 const FACTORY = parseAbi([
   'function getLaunchedToken(address token) view returns (address, address, address, address, address, uint256, uint256, int24, uint256, uint256, uint256, uint256, uint256, uint256, uint256)',
+  'function getLaunchFeePolicy(address token) view returns (address, uint16, uint16, uint16, uint16)',
 ])
 
 const CURVE = parseAbi([
@@ -91,6 +94,14 @@ function usable(chain: Chain, launch: Launch): boolean {
     return false
   }
   return true
+}
+
+export async function feeSplit(chain: Chain, token: Address): Promise<Split> {
+  const [record, policy] = await Promise.all([
+    chain.client.readContract({ address: PONS.factory, abi: FACTORY, functionName: 'getLaunchedToken', args: [token] }),
+    chain.client.readContract({ address: PONS.factory, abi: FACTORY, functionName: 'getLaunchFeePolicy', args: [token] }),
+  ])
+  return { tax: record[8], creator: (BigInt(policy[3]) * (BPS - BigInt(policy[1]))) / BPS }
 }
 
 export async function collectFees(chain: Chain, token: Address): Promise<void> {
