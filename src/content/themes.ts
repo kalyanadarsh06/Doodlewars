@@ -43,10 +43,10 @@ export const PROMPTS = [
   'a chicken in a raincoat',
 ] as const
 
-const ADJECTIVES = ['Wobbly', 'Melancholy', 'Feral', 'Cosmic', 'Soggy', 'Grumpy', 'Electric', 'Tiny', 'Haunted', 'Glorious', 'Crunchy', 'Sleepy'] as const
+const SUBJECTS = ['a raccoon', 'a grumpy cactus', 'a tiny wizard', 'a penguin', 'grandpa', 'a haunted teapot', 'a confused robot', 'a snail', 'a nervous banana', 'a cat'] as const
 
-const NOUNS = ['Cloud', 'Sun', 'Blob', 'Goblin', 'Toast', 'Moon', 'Frog', 'Bean', 'Comet', 'Pickle', 'Noodle', 'Ghost'] as const
+const TWISTS = ['running for mayor', 'at the gym', 'on its first day of school', 'stuck in traffic', 'doing karaoke', 'in a thunderstorm', 'opening a bakery', 'on vacation', 'learning to skate', 'at a job interview'] as const
 
-export function randomTitle(rng: Rng = Math.random): string {
-  return `${pick(rng, ADJECTIVES)}_${pick(rng, NOUNS)}`
+export function randomIdea(rng: Rng = Math.random): string {
+  return `${pick(rng, SUBJECTS)} ${pick(rng, TWISTS)}`
 }
