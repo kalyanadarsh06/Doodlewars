@@ -1,9 +1,9 @@
-import { FINAL_MS, FINAL_ROUNDS, GENESIS_MS, ROUND_MS } from '../config'
+import { FINAL_ROUNDS, GENESIS_MS, ROUND_MS } from '../config'
 import { PROMPTS } from '../content/themes'
 import { seeded } from '../util/random'
 
 const FIRST_ROUND = Math.floor(GENESIS_MS / ROUND_MS)
-const FIRST_FINAL = Math.floor(GENESIS_MS / FINAL_MS)
+export const ROUND_OFFSET = FIRST_ROUND % FINAL_ROUNDS
 
 export function currentRound(now = Date.now()): number {
   return Math.floor(now / ROUND_MS)
@@ -22,19 +22,21 @@ export function roundAt(number: number): number {
 }
 
 export function finalOf(round: number): number {
-  return Math.floor(round / FINAL_ROUNDS)
+  return Math.floor((round - ROUND_OFFSET) / FINAL_ROUNDS)
 }
 
+const FIRST_FINAL = finalOf(FIRST_ROUND)
+
 export function finalRounds(final: number): number[] {
-  return Array.from({ length: FINAL_ROUNDS }, (_, index) => final * FINAL_ROUNDS + index)
+  return Array.from({ length: FINAL_ROUNDS }, (_, index) => final * FINAL_ROUNDS + ROUND_OFFSET + index)
 }
 
 export function finalStart(final: number): number {
-  return final * FINAL_MS
+  return (final * FINAL_ROUNDS + ROUND_OFFSET) * ROUND_MS
 }
 
 export function finalEnd(final: number): number {
-  return (final + 1) * FINAL_MS
+  return finalStart(final + 1)
 }
 
 export function finalNumber(final: number): number {

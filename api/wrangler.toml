@@ -24,7 +24,7 @@ port = 8811
 crons = ["* * * * *"]
 
 [vars]
-TOKEN_ADDRESS = ""
+TOKEN_ADDRESS = "0x39F431bC35bD51570e5d7a2Cdb61f096bd1B6015"
 OWNER_WALLET = "0xd7F272e27BDFE358eA77ce18Bd3c39a8282e531a"
 MIN_HOLD = "1"
 JUDGE_MODEL = "claude-haiku-5-5"

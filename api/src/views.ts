@@ -1,5 +1,5 @@
 import { FINAL_ROUNDS, ROUND_MS } from '../../src/config'
-import { currentRound, finalEnd, finalNumber, finalOf, finalRounds, finalStart, roundNumber } from '../../src/game/round'
+import { currentRound, finalEnd, finalNumber, finalOf, finalRounds, finalStart, ROUND_OFFSET, roundNumber } from '../../src/game/round'
 import { FINALS_PAGE_MAX, PAGE_MAX } from './constants'
 import { countEntries, getMeta, getRound, visibleEntries, type Anchor, type EntryRow, type FinalRow, type RoundRow } from './db'
 import { holds } from './chain'
@@ -68,7 +68,7 @@ const PAST_SELECT = `SELECT r.*,
   f.status AS final_status, f.winner_entry_id AS final_winner
 FROM rounds r
 LEFT JOIN entries w ON w.id = r.winner_entry_id
-LEFT JOIN finals f ON f.id = r.id / ${FINAL_ROUNDS}`
+LEFT JOIN finals f ON f.id = (r.id - ${ROUND_OFFSET}) / ${FINAL_ROUNDS}`
 
 const FINAL_SELECT = `SELECT f.*,
   c.title AS champion_title, c.image_key AS champion_image, c.wallet AS champion_wallet, c.round_id AS champion_round,

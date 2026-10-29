@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { FINAL_MS, FINAL_ROUNDS, ROUND_MS } from '../../src/config'
-import { finalEnd, finalOf, finalRounds } from '../../src/game/round'
+import { finalEnd, finalOf, finalRounds, roundAt, roundNumber } from '../../src/game/round'
 import { GRACE_MS, TOKEN_BYTES } from '../src/constants'
 import type { FinalRow } from '../src/db'
 import { acceptsEntries, cleanTitle, cleanWallet, newToken, optionalWallet, pngSize, tokenHash } from '../src/entries'
@@ -52,10 +52,13 @@ describe('money', () => {
 describe('finals', () => {
   it('groups six rounds into each half-hour Final', () => {
     expect(FINAL_MS).toBe(30 * 60 * 1000)
-    expect(finalRounds(10)).toEqual([60, 61, 62, 63, 64, 65])
-    expect(finalOf(65)).toBe(10)
-    expect(finalOf(66)).toBe(11)
-    expect(finalEnd(10)).toBe(66 * ROUND_MS)
+    const [first] = finalRounds(10)
+    expect(finalRounds(10)).toEqual([first, first + 1, first + 2, first + 3, first + 4, first + 5])
+    expect(finalOf(first + 5)).toBe(10)
+    expect(finalOf(first + 6)).toBe(11)
+    expect(finalEnd(10)).toBe((first + 6) * ROUND_MS)
+    expect(finalRounds(finalOf(roundAt(1)))[0]).toBe(roundAt(1))
+    expect(roundNumber(roundAt(1))).toBe(1)
     expect(finalRounds(10)).toHaveLength(FINAL_ROUNDS)
   })
 

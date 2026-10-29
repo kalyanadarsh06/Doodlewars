@@ -7,7 +7,7 @@ import { setTimeout as sleep } from 'node:timers/promises'
 import { privateKeyToAccount } from 'viem/accounts'
 import { afterAll, beforeAll, expect, it } from 'vitest'
 import { FINAL_ROUNDS, ROUND_MS } from '../../src/config'
-import { currentRound, finalEnd, finalOf } from '../../src/game/round'
+import { currentRound, finalEnd, finalOf, finalRounds } from '../../src/game/round'
 import { GRACE_MS } from '../src/constants'
 import { startFake, type Fake } from './fake'
 import { whitePng } from './png'
@@ -202,7 +202,7 @@ it('runs rounds into a Final: wallet entries, judging, rollover, payout and hist
     `INSERT INTO finals (id, status, close_block, close_balance, fees, prize, winner_entry_id, pay_status, closed_at) VALUES (${final - 5}, 'settled', 0, '0', '7', '7', ${bobEntry}, 'due', 0)`,
   )
   await query(`INSERT INTO finals (id, status, close_block, close_balance, fees, prize, closed_at) VALUES (${final - 1}, 'settled', 0, '0', '${CARRY}', '${CARRY}', 0)`)
-  const extra = round % FINAL_ROUNDS === 0 ? round + 1 : round - 1
+  const extra = round === finalRounds(final)[0] ? round + 1 : round - 1
   if (extra < round) await addFinalist(extra, 'dave', alice.address)
   const aliceBefore = fake.balance(alice.address)
 
@@ -244,8 +244,8 @@ it('runs rounds into a Final: wallet entries, judging, rollover, payout and hist
       pay_status: 'sent',
     },
   ])
-  const missed = await query(`SELECT status, judge_note FROM rounds WHERE id = ${final * FINAL_ROUNDS + FINAL_ROUNDS - 1}`)
-  if (round % FINAL_ROUNDS < FINAL_ROUNDS - 1) expect(missed).toEqual([{ status: 'judged', judge_note: 'Nobody drew this one.' }])
+  const missed = await query(`SELECT status, judge_note FROM rounds WHERE id = ${finalRounds(final).at(-1)}`)
+  if (round !== finalRounds(final).at(-1)) expect(missed).toEqual([{ status: 'judged', judge_note: 'Nobody drew this one.' }])
 
   await tick(finalEnd(final) + GRACE_MS + 62_000)
   await tick(finalEnd(final) + GRACE_MS + 124_000)
