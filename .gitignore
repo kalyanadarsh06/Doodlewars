@@ -4,3 +4,9 @@ dist
 *.local
 .wrangler
 .dev.vars
+.env
+.env.*
+.dev.vars.*
+!.dev.vars.example
+*.pem
+*.key
